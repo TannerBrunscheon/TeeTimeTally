@@ -43,18 +43,48 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-    .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
-    {
-        options.Authority = $"https://{builder.Configuration["Auth0:Domain"]}";
-        options.TokenValidationParameters = new TokenValidationParameters
-        {
-            ValidAudience = builder.Configuration["Auth0:Audience"],
-            ValidIssuer = $"{builder.Configuration["Auth0:Domain"]}",
-            NameClaimType = ClaimTypes.NameIdentifier,
-            RoleClaimType = ClaimTypes.Role,
-            ValidateLifetime = true,
-        };
-    });
+	.AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, options =>
+	{
+		options.Authority = builder.Configuration["Auth0:Domain"];
+		options.Audience = builder.Configuration["Auth0:Audience"]; // Audience can also be set directly here
+		options.TokenValidationParameters = new TokenValidationParameters
+		{
+			ValidIssuer = builder.Configuration["Auth0:Domain"],
+			NameClaimType = ClaimTypes.NameIdentifier,
+			RoleClaimType = ClaimTypes.Role,
+			ValidateLifetime = true,
+			//IssuerSigningKeyResolver = (token, securityToken, kid, parameters) => {
+			//    // If you want to inspect how keys are resolved, though Authority should handle this.
+			//    // This is more for advanced scenarios.
+			//    return new List<SecurityKey>();
+			//},
+			AuthenticationType = JwtBearerDefaults.AuthenticationScheme // Added this line
+		};
+		options.Events = new JwtBearerEvents
+		{
+			OnAuthenticationFailed = context =>
+			{
+				// Log detailed error
+				Console.WriteLine("API Auth Failed: " + context.Exception.ToString());
+				return Task.CompletedTask;
+			},
+			OnTokenValidated = context =>
+			{
+				Console.WriteLine("API Token Validated for: " + context.Principal!.Identity!.Name);
+				return Task.CompletedTask;
+			},
+			OnChallenge = context =>
+			{
+				Console.WriteLine("API OnChallenge: " + context.Error + " - " + context.ErrorDescription);
+				return Task.CompletedTask;
+			},
+			OnMessageReceived = context =>
+			{
+				Console.WriteLine("API Message Received. Token: " + (string.IsNullOrEmpty(context.Token) ? "NOT FOUND" : "FOUND"));
+				return Task.CompletedTask;
+			}
+		};
+	});
 
 builder.Services.AddAuthorization();
 

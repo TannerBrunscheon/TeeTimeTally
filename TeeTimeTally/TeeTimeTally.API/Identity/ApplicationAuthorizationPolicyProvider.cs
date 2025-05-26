@@ -17,7 +17,7 @@ public class ApplicationAuthorizationPolicyProvider(IOptions<AuthorizationOption
 			{
 				policy = new AuthorizationPolicyBuilder()
 					.AddRequirements(
-						new ScopeAuthorizationRequirement(policyName, $"https://{configuration["Auth0:Domain"]}/"))
+						new ScopeAuthorizationRequirement(policyName, configuration["Auth0:Domain"]!))
 					.RequireAuthenticatedUser()
 					.Build();
 			}

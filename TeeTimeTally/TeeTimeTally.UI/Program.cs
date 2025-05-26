@@ -24,7 +24,9 @@ builder.Services.AddReverseProxy()
 
 			if (!string.IsNullOrEmpty(accessToken))
 			{
-				request.ProxyRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+				request.ProxyRequest.Headers.Remove("Authorization");
+
+				request.ProxyRequest.Headers.Add("Authorization", $"Bearer {accessToken}");
 			}
 		});
 	});
