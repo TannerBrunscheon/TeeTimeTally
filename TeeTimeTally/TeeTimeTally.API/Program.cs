@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
-using TeeTimeTally.API.Auth;
+using TeeTimeTally.API.Identity;
 
 var builder = WebApplication.CreateBuilder(args);
 

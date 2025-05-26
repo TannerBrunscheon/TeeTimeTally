@@ -1,7 +1,8 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
+using TeeTimeTally.Shared.Auth;
 
-namespace TeeTimeTally.API.Auth;
+namespace TeeTimeTally.UI.Identity;
 
 public class ApplicationAuthorizationPolicyProvider(IOptions<AuthorizationOptions> options, IConfiguration configuration)
 	: DefaultAuthorizationPolicyProvider(options)

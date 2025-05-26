@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 using TeeTimeTally.Shared.Auth;
 
-namespace TeeTimeTally.API.Auth;
+namespace TeeTimeTally.API.Identity;
 
 public class ScopeAuthorizationHandler
 	: AuthorizationHandler<ScopeAuthorizationRequirement>

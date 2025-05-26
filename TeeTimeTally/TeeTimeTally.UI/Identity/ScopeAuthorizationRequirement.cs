@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Authorization;
 
-namespace TeeTimeTally.API.Auth;
+namespace TeeTimeTally.UI.Identity;
 
 public class ScopeAuthorizationRequirement(string scope, string issuer) : IAuthorizationRequirement
 {
