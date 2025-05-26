@@ -13,7 +13,7 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["TeeTimeTally.API/TeeTimeTally.API.csproj", "TeeTimeTally.API/"]
-COPY ["TeeTimeTally/TeeTimeTally.Shared.csproj", "TeeTimeTally.Shared/"]
+COPY ["TeeTimeTally.Shared/TeeTimeTally.Shared.csproj", "TeeTimeTally.Shared/"]
 RUN dotnet restore "./TeeTimeTally.API/TeeTimeTally.API.csproj"
 COPY . .
 WORKDIR "/src/TeeTimeTally.API"
