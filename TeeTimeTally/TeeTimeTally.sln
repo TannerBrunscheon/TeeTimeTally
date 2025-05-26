@@ -1,0 +1,42 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.9.34728.123
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeeTimeTally.API", "TeeTimeTally.API\TeeTimeTally.API.csproj", "{E3FF4D22-1BCA-48EB-AFEB-193CF78FF951}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeeTimeTally.UI", "TeeTimeTally.UI\TeeTimeTally.UI.csproj", "{ECD7AF96-B675-40AC-91ED-7735E4F726DE}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TeeTimeTally.Shared", "TeeTimeTally.Shared\TeeTimeTally.Shared.csproj", "{463912DB-CB4D-4487-806D-3BD0C7BB975B}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{6DCF48A7-F03E-40E4-88AB-8BA8506C880B}"
+	ProjectSection(SolutionItems) = preProject
+		.editorconfig = .editorconfig
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E3FF4D22-1BCA-48EB-AFEB-193CF78FF951}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E3FF4D22-1BCA-48EB-AFEB-193CF78FF951}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E3FF4D22-1BCA-48EB-AFEB-193CF78FF951}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E3FF4D22-1BCA-48EB-AFEB-193CF78FF951}.Release|Any CPU.Build.0 = Release|Any CPU
+		{ECD7AF96-B675-40AC-91ED-7735E4F726DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{ECD7AF96-B675-40AC-91ED-7735E4F726DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{ECD7AF96-B675-40AC-91ED-7735E4F726DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{ECD7AF96-B675-40AC-91ED-7735E4F726DE}.Release|Any CPU.Build.0 = Release|Any CPU
+		{463912DB-CB4D-4487-806D-3BD0C7BB975B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{463912DB-CB4D-4487-806D-3BD0C7BB975B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{463912DB-CB4D-4487-806D-3BD0C7BB975B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{463912DB-CB4D-4487-806D-3BD0C7BB975B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {F65585DD-79D7-4185-ADE9-A368709E6056}
+	EndGlobalSection
+EndGlobal
