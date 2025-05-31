@@ -93,6 +93,11 @@ if (app.Environment.IsDevelopment())
 {
 }
 
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+	ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+});
+
 app.UseHttpsRedirection();
 
 app.UseAuthentication();
@@ -141,11 +146,7 @@ app.MapGet("/api/authentication/user-info", async (HttpContext httpContext) =>
 
 app.MapReverseProxy();
 
-var forwardedHeadersOptions = new ForwardedHeadersOptions
-{
-	ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
-};
-app.UseForwardedHeaders(forwardedHeadersOptions);
+
 
 app.MapForwarder("/{**catch-all}", app.Configuration["VueAppEndpoint"]!);
 
