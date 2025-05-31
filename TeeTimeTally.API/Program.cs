@@ -88,6 +88,7 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
+n
 builder.Services.AddNpgsqlDataSource(builder.Configuration["DBConnectionString"]!);
 
 
