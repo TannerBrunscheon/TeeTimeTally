@@ -28,4 +28,4 @@ EXPOSE 8080
 # Command to serve your built app (assuming it's in a 'dist' folder)
 # If you need http-server, install it here if not done globally or use a multi-stage build
 RUN npm install -g http-server
-CMD [ "http-server", "dist", "-p", "8080" ]
+CMD [ "http-server", "dist", "-a", "::", "-p", "8080" ]
