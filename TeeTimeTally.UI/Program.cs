@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.HttpOverrides;
 using System.Net.Http.Headers;
 using System.Security.Claims;
 using TeeTimeTally.Shared.Auth;
@@ -139,6 +140,12 @@ app.MapGet("/api/authentication/user-info", async (HttpContext httpContext) =>
 }).RequireAuthorization();
 
 app.MapReverseProxy();
+
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+	ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.MapForwarder("/{**catch-all}", app.Configuration["VueAppEndpoint"]!);
 
