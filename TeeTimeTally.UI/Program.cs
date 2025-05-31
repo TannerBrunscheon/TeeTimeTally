@@ -174,7 +174,7 @@ app.MapGet("/api/authentication/user-info", async (HttpContext httpContext) =>
 	var roles = httpContext.User.FindAll(c => c.Type == ClaimTypes.Role).Select(c => c.Value).ToArray();
 	var permissions = httpContext.User.FindAll(c => c.Type == IdentityClaimTypes.Permissions).Select(c => c.Value).ToArray();
 
-	return TypedResults.Ok(new UserInfoResponse(name, email, picture, roles, permissions));
+	return TypedResults.Ok(new UserInfoResponse(name!, email!, picture!, roles, permissions));
 }).RequireAuthorization();
 
 app.MapReverseProxy();

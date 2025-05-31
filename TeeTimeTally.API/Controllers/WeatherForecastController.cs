@@ -1,23 +1,27 @@
+using FastEndpoints;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using TeeTimeTally.Shared.Auth;
+using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
-namespace TeeTimeTally.API.Controllers;
+namespace TeeTimeTally.API.Endpoints.Courses;
 
-[ApiController]
-[Route("/api/courses")]
 [Authorize(Policy = Auth0Scopes.ManageRoundCth)]
-public class WeatherForecastController() : ControllerBase
+public class GetCoursesEndpoint : EndpointWithoutRequest<IEnumerable<Course>>
 {
-	[HttpGet(Name = "GetWeatherForecast")]
-	public IEnumerable<Course> Get()
+	public override void Configure()
 	{
-		return Enumerable.Range(1, 5).Select(index => new Course
+		Get("/courses"); 
+	}
+
+	public override async Task HandleAsync(CancellationToken ct)
+	{
+		// This logic replicates the Get() method from your WeatherForecastController
+		var courses = Enumerable.Range(1, 5).Select(index => new Course
 		{
 			Id = index,
-			CTHHole = 2,
-			Name= "Mape"
-		})
-		.ToArray();
+			CTHHole = 2, // Matches your example
+			Name = "Mape"  // Matches your example
+		}).ToArray();
+
+		await SendAsync(courses, cancellation: ct);
 	}
 }

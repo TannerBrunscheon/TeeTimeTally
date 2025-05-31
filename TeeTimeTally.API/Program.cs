@@ -1,3 +1,5 @@
+using FastEndpoints;
+using FastEndpoints.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
@@ -5,13 +7,14 @@ using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using TeeTimeTally.API.Identity;
 
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-
-builder.Services.AddControllers();
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddEndpointsApiExplorer();
+// Add FastEndpoints services
+builder.Services.AddFastEndpoints();
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -88,7 +91,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 
 builder.Services.AddAuthorization();
 
-n
 builder.Services.AddNpgsqlDataSource(builder.Configuration["DBConnectionString"]!);
 
 
@@ -120,10 +122,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
+app.UseCors("AllowSpecificOrigin"); 
+
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-app.MapControllers();
+app.UseFastEndpoints(config =>
+{
+	config.Endpoints.RoutePrefix = "api"; // Optional: if you want all FastEndpoints to be under /api
+});
+
 
 app.UseCors("AllowSpecificOrigin");
 
