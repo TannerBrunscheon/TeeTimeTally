@@ -140,6 +140,6 @@ app.MapGet("/api/authentication/user-info", async (HttpContext httpContext) =>
 
 app.MapReverseProxy();
 
-app.MapForwarder("/{**catch-all}", app.Configuration["http://localhost:5173"]!);
+app.MapForwarder("/{**catch-all}", app.Configuration["VueAppEndpoint"]!);
 
 await app.RunAsync();
