@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Authorization;
 using Npgsql;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
-namespace TeeTimeTally.API.Features.Courses.Endpoints.GetCourseById; // Using a more specific namespace
+namespace TeeTimeTally.API.Endpoints.Courses; // Using a more specific namespace
 
 // 1. Request DTO
 public class GetCourseByIdRequest
@@ -16,7 +16,7 @@ public class GetCourseByIdRequest
 }
 
 // 2. Response DTO
-public record CourseResponse(
+public record GetSingleCourseResponse(
 	Guid Id,
 	string Name,
 	int CthHoleNumber,
@@ -26,7 +26,7 @@ public record CourseResponse(
 
 // 3. Endpoint Class
 [HttpGet("/courses/{Id}"), Authorize(Policy = Auth0Scopes.ReadCourses)]
-public class GetCourseByIdEndpoint(NpgsqlDataSource dataSource) : Endpoint<GetCourseByIdRequest, CourseResponse>
+public class GetCourseByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetCourseByIdEndpoint> logger) : Endpoint<GetCourseByIdRequest, GetSingleCourseResponse>
 {
 	public override async Task HandleAsync(GetCourseByIdRequest req, CancellationToken ct)
 	{
@@ -39,16 +39,16 @@ public class GetCourseByIdEndpoint(NpgsqlDataSource dataSource) : Endpoint<GetCo
             FROM courses
             WHERE id = @Id;";
 
-		CourseResponse? course;
+		GetSingleCourseResponse? course;
 
 		try
 		{
 			await using var connection = await dataSource.OpenConnectionAsync(ct);
-			course = await connection.QuerySingleOrDefaultAsync<CourseResponse>(sql, new { req.Id });
+			course = await connection.QuerySingleOrDefaultAsync<GetSingleCourseResponse>(sql, new { req.Id });
 		}
 		catch (Exception ex) // Includes NpgsqlException, but also any other during DB interaction
 		{
-			Logger.LogError(ex, "Error fetching course with ID {CourseId}.", req.Id);
+			logger.LogError(ex, "Error fetching course with ID {CourseId}.", req.Id);
 			var errorProblem = TypedResults.Problem(
 				title: "Database Error",
 				detail: "An error occurred while fetching the course data.",

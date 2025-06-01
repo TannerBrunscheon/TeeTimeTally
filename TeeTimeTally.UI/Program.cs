@@ -5,7 +5,6 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.HttpOverrides; // Required for ForwardedHeadersOptions
-using System.Net.Http.Headers;
 using System.Security.Claims;
 using TeeTimeTally.Shared.Auth;
 using TeeTimeTally.UI.Identity;

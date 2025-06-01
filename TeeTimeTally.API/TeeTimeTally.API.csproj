@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
@@ -16,15 +16,21 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Auth0.ManagementApi" Version="7.37.0" />
     <PackageReference Include="Dapper" Version="2.1.66" />
     <PackageReference Include="FastEndpoints.Security" Version="6.2.0-beta.3" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.16" />
+    <PackageReference Include="NCalcAsync" Version="5.4.2" />
     <PackageReference Include="Npgsql.DependencyInjection" Version="9.0.3" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\TeeTimeTally.Shared\TeeTimeTally.Shared.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="NewFolder\" />
   </ItemGroup>
 
 </Project>

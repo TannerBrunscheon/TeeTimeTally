@@ -4,22 +4,21 @@ using FastEndpoints;
 using Microsoft.AspNetCore.Authorization;
 using Npgsql;
 using System.Security.Claims;
-using TeeTimeTally.API.Features.Courses.Endpoints.GetCourseById; // Assuming your DTOs are here
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 // Define this if not already globally available
 // public record SimpleErrorResponse(string Message);
 
-namespace TeeTimeTally.API.Features.Courses.Endpoints;
+namespace TeeTimeTally.API.Endpoints.Courses;
 
 // 1. Request DTO
 public record CreateCourseRequest(string Name, int CthHoleNumber);
 // 1. Response DTO
-public record CourseResponse(Guid Id, string Name, int CthHoleNumber, DateTime CreatedAt, DateTime UpdatedAt);
+public record CreateCourseResponse(Guid Id, string Name, int CthHoleNumber, DateTime CreatedAt, DateTime UpdatedAt);
 
 
 [HttpPost("/courses"), Authorize(Policy = Auth0Scopes.CreateCourses)]
-public class CreateCourseEndpoint(NpgsqlDataSource dataSource) : Endpoint<CreateCourseRequest, CourseResponse>
+public class CreateCourseEndpoint(NpgsqlDataSource dataSource, ILogger<DeleteCourseEndpoint> logger) : Endpoint<CreateCourseRequest, CreateCourseResponse>
 {
 	public override async Task HandleAsync(CreateCourseRequest req, CancellationToken ct)
 	{
@@ -39,22 +38,22 @@ public class CreateCourseEndpoint(NpgsqlDataSource dataSource) : Endpoint<Create
                       created_at AS CreatedAt, 
                       updated_at AS UpdatedAt;";
 
-		CourseResponse? createdCourseResponse;
+		CreateCourseResponse? createdCourseResponse;
 
 		try
 		{
 			await using var connection = await dataSource.OpenConnectionAsync(ct);
 
-			createdCourseResponse = await connection.QuerySingleOrDefaultAsync<CourseResponse>(sql, new
+			createdCourseResponse = await connection.QuerySingleOrDefaultAsync<CreateCourseResponse>(sql, new
 			{
-				Name = req.Name,
-				CthHoleNumber = req.CthHoleNumber,
+				req.Name,
+				req.CthHoleNumber,
 				CreatedByGolferId = adminGolferId
 			});
 		}
 		catch (PostgresException ex)
 		{
-			Logger.LogError(ex, "Database error creating course. SQLState: {SqlState}", ex.SqlState);
+			logger.LogError(ex, "Database error creating course. SQLState: {SqlState}", ex.SqlState);
 			if (ex.SqlState == "23505") // Unique violation for course name
 			{
 				var conflictProblem = TypedResults.Problem(
@@ -77,7 +76,7 @@ public class CreateCourseEndpoint(NpgsqlDataSource dataSource) : Endpoint<Create
 		}
 		catch (Exception ex)
 		{
-			Logger.LogError(ex, "Unexpected error creating course.");
+			logger.LogError(ex, "Unexpected error creating course.");
 			var generalErrorProblem = TypedResults.Problem(
 				title: "Internal Server Error",
 				detail: "An unexpected error occurred.",
@@ -89,7 +88,7 @@ public class CreateCourseEndpoint(NpgsqlDataSource dataSource) : Endpoint<Create
 
 		if (createdCourseResponse == null)
 		{
-			Logger.LogWarning("Course creation did not return a course record after insert, for request: {@Request}", req);
+			logger.LogWarning("Course creation did not return a course record after insert, for request: {@Request}", req);
 			var creationErrorProblem = TypedResults.Problem(
 				title: "Creation Error",
 				detail: "Failed to create the course or retrieve creation details.",

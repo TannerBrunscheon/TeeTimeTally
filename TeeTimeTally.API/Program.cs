@@ -5,7 +5,6 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using TeeTimeTally.API.Identity;
-using Npgsql;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -132,6 +131,7 @@ app.UseFastEndpoints(config =>
 {
 	config.Endpoints.RoutePrefix = "api"; // Optional: if you want all FastEndpoints to be under /api
 });
+
 
 
 app.UseCors("AllowSpecificOrigin");
