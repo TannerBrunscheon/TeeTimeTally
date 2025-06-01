@@ -1,11 +1,11 @@
 using FastEndpoints;
-using FastEndpoints.Security;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Security.Claims;
 using TeeTimeTally.API.Identity;
+using Npgsql;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -122,7 +122,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 
-app.UseCors("AllowSpecificOrigin"); 
+app.UseCors("AllowSpecificOrigin");
 
 
 app.UseAuthentication();
