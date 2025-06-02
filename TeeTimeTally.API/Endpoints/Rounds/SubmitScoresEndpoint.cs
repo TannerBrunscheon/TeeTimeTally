@@ -1,18 +1,11 @@
-﻿using FastEndpoints;
-using Microsoft.AspNetCore.Authorization;
-using Npgsql;
-using Dapper;
-using TeeTimeTally.Shared.Auth; // For Auth0Scopes
-using Microsoft.AspNetCore.Http; // For StatusCodes and TypedResults
-using Microsoft.Extensions.Logging; // For ILogger
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
-using System.Security.Claims;
+﻿using Dapper;
+using FastEndpoints;
 using FluentValidation;
-using Microsoft.AspNetCore.Mvc; // For FromRoute
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Npgsql;
+using System.Security.Claims;
+using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 namespace TeeTimeTally.API.Features.Rounds.Endpoints.SubmitScores;
 
@@ -38,12 +31,10 @@ public record SubmitScoresResponse(
 	string? RoundStatusAfterSubmit // New field to indicate if round became "Completed"
 );
 
-// Helper for fetching current user's golfer ID and admin status
 file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
-// Helper for fetching basic round info for validation
 file record RoundValidationInfo(Guid Id, string Status, Guid GroupId);
-// Helper for fetching team IDs in a round
-file record TeamInRoundInfo(Guid TeamId, string TeamNameOrNumber); // Added TeamNameOrNumber for better messages
+file record TeamInRoundInfo(Guid TeamId, string TeamNameOrNumber);
+file record StoredScoreInfo(Guid TeamId, int HoleNumber, int Score);
 
 
 // --- Fluent Validator for SubmitScoresRequest ---
@@ -204,7 +195,7 @@ public class SubmitScoresEndpoint(NpgsqlDataSource dataSource, ILogger<SubmitSco
 					scoreEntry.Score
 				}, transaction);
 				if (rowsAffected > 0) scoresProcessedCount++;
-			} 
+			}
 
 			// Update round's updated_at timestamp
 			await connection.ExecuteAsync("UPDATE rounds SET updated_at = NOW() WHERE id = @RoundId", new { req.RoundId }, transaction);
