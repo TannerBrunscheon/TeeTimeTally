@@ -1,0 +1,110 @@
+# YourProjectRoot/build/docker-compose.yml
+version: '3.8'
+
+services:
+  # PostgreSQL Database Service
+  db:
+    image: postgres:15
+    container_name: teetimetally_db_local
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-teetimetallyuser}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yoursecurepassword}
+      POSTGRES_DB: ${POSTGRES_DB:-teetimetallydb}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data_local:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Flyway Migration Service
+  flyway:
+    build:
+      context: .. # Build context is the project root (one level up from this compose file)
+      dockerfile: build/Dockerfiles/Flyway.Dockerfile # Corrected path to the Flyway.Dockerfile
+      args:
+        # Pass the ARG to the Flyway.Dockerfile.
+        # Set RUN_TEST_ENV_SEED_SQL=true in your .env file or environment to enable seeding.
+        RUN_TEST_ENV_SEED_SQL: ${RUN_TEST_ENV_SEED_SQL:-false}
+    container_name: teetimetally_flyway_local
+    environment:
+      FLYWAY_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-teetimetallydb}
+      FLYWAY_USER: ${POSTGRES_USER:-teetimetallyuser}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:-yoursecurepassword}
+      # FLYWAY_BASELINE_ON_MIGRATE: "true" # Uncomment if baselining an existing DB
+      # FLYWAY_BASELINE_VERSION: "0"     # Version for baseline
+    depends_on:
+      db:
+        condition: service_healthy
+    # The CMD ["migrate"] from Flyway.Dockerfile will run on container start.
+
+  # API Service (.NET)
+  api:
+    build:
+      context: .. # Project root
+      dockerfile: build/Dockerfiles/API.Dockerfile # Path from project root
+    container_name: teetimetally_api_local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5200 # Port inside the container
+      # Database connection string for the API
+      DBConnectionString: "Host=db;Port=5432;Database=${POSTGRES_DB:-teetimetallydb};Username=${POSTGRES_USER:-teetimetallyuser};Password=${POSTGRES_PASSWORD:-yoursecurepassword}"
+      # Add other API-specific environment variables here (e.g., Auth0 settings)
+      Auth0__Domain: ${AUTH0_DOMAIN}
+      Auth0__Audience: ${AUTH0_AUDIENCE}
+    ports:
+      - "${API_PORT:-5200}:5200" # Expose API on localhost
+    depends_on:
+      flyway:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Vue.js Client Service (served statically)
+  vue-client:
+    build:
+      context: .. # Project root
+      dockerfile: build/Dockerfiles/Vue.Dockerfile # Path from project root
+    container_name: teetimetally_vue_local
+    ports:
+      - "${VUE_PORT:-8080}:8080" # Expose Vue app on localhost
+    restart: unless-stopped
+    # No direct backend dependencies for startup, but will make calls to the UI/BFF
+
+  # UI Service (.NET BFF)
+  ui:
+    build:
+      context: .. # Project root
+      dockerfile: build/Dockerfiles/UI.Dockerfile # Path from project root
+    container_name: teetimetally_ui_local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:5100 # Port inside the container
+      # URL for the backend API service
+      API_BASE_URL: http://api:5200 # Internal Docker network URL
+      # URL for the Vue app (if the BFF needs to know it, e.g., for redirects or constructing full URLs)
+      VUE_APP_BASE_URL: http://vue-client:8080 # Internal Docker network URL for Vue
+      # Add other UI-specific environment variables here (e.g., Auth0 settings for BFF)
+      Auth0__Domain: ${AUTH0_DOMAIN}
+      Auth0__ClientId: ${AUTH0_CLIENT_ID_UI}
+      Auth0__ClientSecret: ${AUTH0_CLIENT_SECRET_UI}
+      Auth0__Audience: ${AUTH0_AUDIENCE} # If UI also needs API audience
+      ReverseProxy__Clusters__backend__Destinations__destination1__Address: http://api:5200 # YARP config
+      VueAppEndpoint: http://vue-client:8080 # For YARP forwarding to Vue in dev
+    ports:
+      - "${UI_PORT:-5100}:5100" # Expose UI/BFF on localhost
+    depends_on:
+      api:
+        condition: service_started
+      vue-client:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  postgres_data_local: # Defines the named volume for PostgreSQL data persistence
+
