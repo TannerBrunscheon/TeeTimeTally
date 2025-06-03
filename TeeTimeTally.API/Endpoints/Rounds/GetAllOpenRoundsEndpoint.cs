@@ -11,19 +11,20 @@ namespace TeeTimeTally.API.Endpoints.Rounds;
 public record GetAllOpenRoundsResponse(
 	Guid RoundId,
 	DateTime RoundDate,
-	string Status, // From round_status_enum
+	string Status,
 	Guid GroupId,
 	string GroupName,
 	Guid CourseId,
 	string CourseName,
-	int NumPlayers
+	short? NumPlayers // Changed from int to short? (nullable short)
 );
 
 // Helper for fetching current user's golfer ID and admin status (file-scoped)
 file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 
-[HttpGet("/rounds/open"), Authorize(Policy = Auth0Scopes.ReadGroupRounds)] // Requires users to have permission to read group rounds
-public class GetAllOpenRoundsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAllOpenRoundsEndpoint> logger) : EndpointWithoutRequest<IEnumerable<GetAllOpenRoundsResponse>>
+[HttpGet("/rounds/open"), Authorize(Policy = Auth0Scopes.ReadGroupRounds)]
+public class GetAllOpenRoundsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAllOpenRoundsEndpoint> logger)
+	: EndpointWithoutRequest<IEnumerable<GetAllOpenRoundsResponse>>
 {
 	public override async Task HandleAsync(CancellationToken ct)
 	{
@@ -44,16 +45,15 @@ public class GetAllOpenRoundsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAl
 		if (currentUserInfo == null)
 		{
 			logger.LogWarning("No active golfer profile found for Auth0 User ID {Auth0UserId} attempting to fetch open rounds.", auth0UserId);
-			// Depending on policy, if a user must have a profile to see anything.
-			// For ReadGroupRounds, maybe an empty list is fine if they have the permission but no profile yet.
-			// Or, more strictly, a 403. Let's return empty for now if profile lookup fails but user is authenticated.
-			await SendOkAsync(Enumerable.Empty<GetAllOpenRoundsResponse>(), ct);
+			await SendOkAsync(Enumerable.Empty<GetAllOpenRoundsResponse>(), ct); // Return empty if profile lookup fails
 			return;
 		}
 
 		string sql;
 		object? queryParams;
-		var openStatuses = new[] { "PendingSetup", "SetupComplete", "InProgress", "Completed" }; // Based on round_status_enum
+		// Statuses considered "open" for viewing in this list.
+		// "Completed" means scores are in, but it's not yet "Finalized" with payouts.
+		var openStatuses = new[] { "PendingSetup", "SetupComplete", "InProgress", "Completed" };
 
 		if (currentUserInfo.IsSystemAdmin)
 		{
@@ -78,7 +78,7 @@ public class GetAllOpenRoundsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAl
                 ORDER BY r.round_date DESC, g.name;";
 			queryParams = new { OpenStatuses = openStatuses };
 		}
-		else // Non-admin scorer
+		else // Non-admin scorer - fetch for groups they are a scorer for
 		{
 			logger.LogInformation("User {GolferId} fetching open rounds for groups they manage.", currentUserInfo.Id);
 			sql = @"
@@ -112,8 +112,8 @@ public class GetAllOpenRoundsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAl
 		}
 		catch (Exception ex)
 		{
-			logger.LogError(ex, "Error fetching open rounds for user {Auth0UserId} (GolferId: {GolferId}, IsAdmin: {IsAdmin}).",
-				auth0UserId, currentUserInfo.Id, currentUserInfo.IsSystemAdmin);
+			logger.LogError(ex, "Error fetching open rounds for user {Auth0UserId} (GolferId: {GolferId}, IsAdmin: {IsAdmin}). SQL: {SQLQuery}",
+				auth0UserId, currentUserInfo.Id, currentUserInfo.IsSystemAdmin, sql); // Log the query for debugging
 			var errorProblem = TypedResults.Problem(
 				title: "Database Error",
 				detail: "An error occurred while fetching open rounds data.",

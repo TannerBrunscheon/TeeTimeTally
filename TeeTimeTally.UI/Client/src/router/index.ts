@@ -30,10 +30,34 @@ const router = createRouter({
         {
           path: 'profile',
           name: 'authentication-profile',
-          component: () => import('../views/Authentication/ProfileView.vue')
+          component: () => import('../views/Groups/GroupsIndex.vue')
         }
       ]
-    }
+    },
+    {
+      path: '/rounds',
+      name: 'round-management',
+      children: [
+        {
+          path: 'new', // Or your preferred path
+          name: 'create-round',
+          component: () => import('../views/Rounds/CreateRoundView.vue'), // Create this component
+          meta: { requiresAuth: true, requiresPermission: Permissions.CreateRounds }
+        },
+        {
+          path: ':roundId/overview', // Or similar
+          name: 'round-overview',
+          component: () => import('../views/Rounds/RoundOverviewView.vue'), // Create this component
+          props: true, // To pass roundId as a prop
+          meta: { requiresAuth: true, requiresPermission: Permissions.ReadGroupRounds }
+        }
+      ]
+    },
+    {
+      path: '/groups',
+      name: 'groups-index',
+      component: () => import('../views/Groups/GroupsIndex.vue'),
+    },
   ]
 })
 
