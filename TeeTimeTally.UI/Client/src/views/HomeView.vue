@@ -11,7 +11,6 @@
           <div v-if="authenticationStore.isAuthenticated">
             <p class="lead mb-3">Hello, {{ authenticationStore.user?.fullName }}!</p>
             <RouterLink
-              v-if="authenticationStore.hasPermission(Permissions.CreateRounds)"
               :to="{ name: 'create-round' }"
               class="btn btn-primary btn-lg me-2"
               role="button"
@@ -19,7 +18,6 @@
               <i class="bi bi-plus-circle-fill me-2"></i>Create New Round
             </RouterLink>
              <RouterLink
-              v-if="authenticationStore.hasPermission(Permissions.ReadGroups)"
               :to="{ name: 'groups-index' }"
               class="btn btn-outline-secondary btn-lg"
               role="button"
@@ -97,7 +95,7 @@ const router = useRouter();
 const user = computed(() => authenticationStore.user);
 
 onMounted(() => {
-  if (authenticationStore.isAuthenticated && authenticationStore.hasPermission(Permissions.ReadGroupRounds)) {
+  if (authenticationStore.isAuthenticated) {
     roundsStore.fetchOpenRounds();
   }
 });
