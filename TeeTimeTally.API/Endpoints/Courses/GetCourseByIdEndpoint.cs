@@ -19,7 +19,7 @@ public class GetCourseByIdRequest
 public record GetSingleCourseResponse(
 	Guid Id,
 	string Name,
-	int CthHoleNumber,
+	short CthHoleNumber,
 	DateTime CreatedAt,
 	DateTime UpdatedAt
 );

@@ -12,7 +12,7 @@ DELETE FROM round_participants;
 DELETE FROM round_teams;
 DELETE FROM rounds;
 DELETE FROM group_members;
--- Optional: UPDATE groups SET active_financial_configuration_id = NULL;
+UPDATE groups SET active_financial_configuration_id = NULL;
 DELETE FROM group_financial_configurations;
 DELETE FROM groups;
 DELETE FROM courses;
@@ -22,7 +22,7 @@ DELETE FROM golfers;
 CREATE OR REPLACE FUNCTION get_random_score(min_val INT, max_val INT)
 RETURNS INT AS $$
 BEGIN
-  RETURN floor(random() * (max_val - min_val + 1) + min_val)::INT;
+    RETURN floor(random() * (max_val - min_val + 1) + min_val)::INT;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -32,6 +32,7 @@ DECLARE
     admin_golfer_id_1 UUID := 'A0000000-0000-0000-0000-000000000001'; -- Tanner Brunscheon
     admin_golfer_id_2 UUID := 'A0000000-0000-0000-0000-000000000002'; -- Jeff Brunscheon
     admin_golfer_id_3 UUID := 'A0000000-0000-0000-0000-000000000003'; -- Todd Kuethe
+    admin_golfer_id_new UUID := 'A0000000-0000-0000-0000-000000000004'; -- New Admin User
     scorer_golfer_s1 UUID := 'B0000000-0000-0000-0000-000000000001';
     scorer_golfer_s2 UUID := 'B0000000-0000-0000-0000-000000000002';
     scorer_golfer_s3 UUID := 'B0000000-0000-0000-0000-000000000003';
@@ -117,6 +118,7 @@ INSERT INTO golfers (id, auth0_user_id, full_name, email, is_system_admin, creat
 (admin_golfer_id_1, NULL, 'Tanner Brunscheon', 'tannerbrunscheon@gmail.com', TRUE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
 (admin_golfer_id_2, NULL, 'Jeff Brunscheon', 'jeffb@rtc279.com', TRUE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
 (admin_golfer_id_3, NULL, 'Todd Kuethe', 'tkuethe@rtc279.com', TRUE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
+(admin_golfer_id_new, NULL, 'New Admin User', 'admin@teetimetally.com', TRUE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
 (scorer_golfer_s1, NULL, 'Scorer Alice', 'scorer.alice@example.com', FALSE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
 (scorer_golfer_s2, NULL, 'Scorer Bob', 'scorer.bob@example.com', FALSE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
 (scorer_golfer_s3, NULL, 'Scorer Carol', 'scorer.carol@example.com', FALSE, '2024-01-01 10:00:00+00', '2024-01-01 10:05:00+00', FALSE, NULL),
@@ -165,13 +167,13 @@ INSERT INTO groups (id, name, default_course_id, created_by_golfer_id, created_a
 -- 4. group_financial_configurations
 RAISE NOTICE 'Seeding group_financial_configurations...';
 INSERT INTO group_financial_configurations (id, group_id, buy_in_amount, skin_value_formula, cth_payout_formula, is_validated, created_at, validated_at, is_deleted, deleted_at) VALUES
-(gfc_g1_active, group_g1, 20.00, '2 + ({{roundPlayers}} - 6) * 0.5', '{{roundPlayers}} * 1', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
-(gfc_g2_active, group_g2, 10.00, '1 + ({{roundPlayers}} - 6) * 0.25', '5 + ({{roundPlayers}} - 6) * 0.5', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
-(gfc_g5_active, group_g5_complex_fin, 50.00, '5 + ({{roundPlayers}} - 10) * 1', '20 + ({{roundPlayers}} - 10) * 2', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
-(gfc_g1_old_invalid, group_g1, 5.00, '{{roundPlayers}} / 2', '{{roundPlayers}} * 50', FALSE, '2023-12-01 10:00:00+00', NULL, FALSE, NULL),
+(gfc_g1_active, group_g1, 20.00, '2 + ([roundPlayers] - 6) * 0.5', '[roundPlayers] * 1', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
+(gfc_g2_active, group_g2, 10.00, '1 + ([roundPlayers] - 6) * 0.25', '5 + ([roundPlayers] - 6) * 0.5', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
+(gfc_g5_active, group_g5_complex_fin, 50.00, '5 + ([roundPlayers] - 10) * 1', '20 + ([roundPlayers] - 10) * 2', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
+(gfc_g1_old_invalid, group_g1, 5.00, '[roundPlayers] / 2', '[roundPlayers] * 50', FALSE, '2023-12-01 10:00:00+00', NULL, FALSE, NULL),
 (gfc_deleted, group_g1, 15.00, '1.5', '10', TRUE, '2023-11-01 10:00:00+00', '2023-11-02 11:00:00+00', TRUE, '2024-03-01 14:00:00+00'),
 (gfc_g3_for_deleted_group, group_g3_deleted, 25.00, '3', '15', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL),
-(gfc_g6_active, group_g6_secret_agents, 15.00, '1.5 + ({{roundPlayers}} - 6) * 0.30', '10', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL);
+(gfc_g6_active, group_g6_secret_agents, 15.00, '1.5 + ([roundPlayers] - 6) * 0.30', '10', TRUE, '2024-01-01 10:00:00+00', '2024-01-02 11:00:00+00', FALSE, NULL);
 
 -- Update groups with active_financial_configuration_id
 RAISE NOTICE 'Seeding groups (phase 2 - linking financial configs)...';
@@ -218,12 +220,12 @@ INSERT INTO group_members (group_id, golfer_id, is_scorer, joined_at) VALUES
 RAISE NOTICE 'Seeding rounds...';
 INSERT INTO rounds (id, group_id, course_id, financial_configuration_id, round_date, status, num_players, total_pot, calculated_skin_value_per_hole, calculated_cth_payout, cth_winner_golfer_id, final_skin_rollover_amount, final_total_skins_payout, final_overall_winner_payout_amount, finalized_at, created_by_golfer_id, created_at, updated_at) VALUES
 (round_1_finalized_g1_c1, group_g1, course_c1, gfc_g1_active, '2024-05-10', 'Finalized', 6, 120.00, 2.00, 6.00, regular_golfer_r1, 0.00, 36.00, 78.00, '2024-05-10 18:00:00+00', scorer_golfer_s1, '2024-05-10 08:00:00+00', '2024-05-10 18:05:00+00'),
-(round_2_completed_g2_c2, group_g2, course_c2, gfc_g2_active, '2024-05-15', 'Completed', 8, 80.00, 1.50, 7.00, regular_golfer_r8, scorer_golfer_s2, '2024-05-15 09:00:00+00', '2024-05-15 17:00:00+00'),
-(round_3_inprogress_g1_c3, group_g1, course_c3, gfc_g1_active, '2024-05-20', 'InProgress', 10, 200.00, 4.00, 10.00, scorer_golfer_s1, '2024-05-20 07:00:00+00', '2024-05-20 14:00:00+00'),
-(round_4_setupcomplete_g5_c1, group_g5_complex_fin, course_c1, gfc_g5_active, '2024-05-25', 'SetupComplete', 7, 350.00, 5.00, 20.00, admin_golfer_id_2, '2024-05-25 10:00:00+00', '2024-05-25 10:05:00+00'),
-(round_5_pending_g2_c2, group_g2, course_c2, gfc_g2_active, '2024-06-01', 'PendingSetup', scorer_golfer_s2, '2024-05-28 11:00:00+00', '2024-05-28 11:00:00+00'),
+(round_2_completed_g2_c2, group_g2, course_c2, gfc_g2_active, '2024-05-15', 'Completed', 8, 80.00, 1.50, 7.00, regular_golfer_r8, 0.00, 27.00, 46.00, '2024-05-15 17:00:00+00', scorer_golfer_s2, '2024-05-15 09:00:00+00', '2024-05-15 17:00:00+00'),
+(round_3_inprogress_g1_c3, group_g1, course_c3, gfc_g1_active, '2024-05-20', 'InProgress', 10, 200.00, 4.00, 10.00, NULL, NULL, NULL, NULL, NULL, scorer_golfer_s1, '2024-05-20 07:00:00+00', '2024-05-20 14:00:00+00'),
+(round_4_setupcomplete_g5_c1, group_g5_complex_fin, course_c1, gfc_g5_active, '2024-05-25', 'SetupComplete', 7, 350.00, 5.00, 20.00, NULL, NULL, NULL, NULL, NULL, admin_golfer_id_2, '2024-05-25 10:00:00+00', '2024-05-25 10:05:00+00'),
+(round_5_pending_g2_c2, group_g2, course_c2, gfc_g2_active, '2024-06-01', 'PendingSetup', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, scorer_golfer_s2, '2024-05-28 11:00:00+00', '2024-05-28 11:00:00+00'),
 (round_6_finalized_rollover_g1_c1, group_g1, course_c1, gfc_g1_active, '2024-04-20', 'Finalized', 12, 240.00, 5.00, 12.00, regular_golfer_r14, 10.00, 80.00, 138.00, '2024-04-20 19:00:00+00', scorer_golfer_s1, '2024-04-20 08:30:00+00', '2024-04-20 19:05:00+00'),
-(round_7_completed_tie_g2_c3, group_g2, course_c3, gfc_g2_active, '2024-04-25', 'Completed', 6, 60.00, 1.00, 5.50, regular_golfer_r9, scorer_golfer_s3, '2024-04-25 09:00:00+00', '2024-04-25 17:30:00+00'),
+(round_7_completed_tie_g2_c3, group_g2, course_c3, gfc_g2_active, '2024-04-25', 'Completed', 6, 60.00, 1.00, 5.50, regular_golfer_r9, 0.00, 18.00, 36.50, '2024-04-25 17:30:00+00', scorer_golfer_s3, '2024-04-25 09:00:00+00', '2024-04-25 17:30:00+00'),
 -- New rounds for Secret Agent Man
 (round_8_pending_g6_c1, group_g6_secret_agents, course_c1, gfc_g6_active, '2024-06-05', 'PendingSetup', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, scorer_golfer_s6, '2024-06-01 10:00:00+00', '2024-06-01 10:00:00+00'),
 (round_9_setupcomplete_g6_c2, group_g6_secret_agents, course_c2, gfc_g6_active, '2024-06-10', 'SetupComplete', 6, 90.00, 1.50, 10.00, NULL, NULL, NULL, NULL, NULL, scorer_golfer_s6, '2024-06-02 10:00:00+00', '2024-06-02 10:05:00+00'),

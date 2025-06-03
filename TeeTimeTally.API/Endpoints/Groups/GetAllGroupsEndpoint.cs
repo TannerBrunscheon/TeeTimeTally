@@ -128,29 +128,30 @@ public class GetAllGroupsEndpoint(NpgsqlDataSource dataSource, ILogger<GetAllGro
 			groupResponses = resultRows.Select(row =>
 			{
 				GetGroupsFinancialConfigurationResponseDTO? activeConfig = null;
-				if (row.ActiveConfig_Id != null)
+				// Access properties directly from the dynamic row using the exact casing provided
+				if (row.activeconfig_id != null) // Check if the property exists and is not null
 				{
 					activeConfig = new GetGroupsFinancialConfigurationResponseDTO(
-						Id: (Guid)row.ActiveConfig_Id,
-						GroupId: (Guid)row.ActiveConfig_GroupId,
-						BuyInAmount: (decimal)row.ActiveConfig_BuyInAmount,
-						SkinValueFormula: (string)row.ActiveConfig_SkinValueFormula,
-						CthPayoutFormula: (string)row.ActiveConfig_CthPayoutFormula,
-						IsValidated: (bool)row.ActiveConfig_IsValidated,
-						CreatedAt: (DateTime)row.ActiveConfig_CreatedAt,
-						ValidatedAt: (DateTime?)row.ActiveConfig_ValidatedAt
+						Id: (Guid)row.activeconfig_id,
+						GroupId: (Guid)row.activeconfig_groupid,
+						BuyInAmount: (decimal)row.activeconfig_buyinamount,
+						SkinValueFormula: (string)row.activeconfig_skinvalueformula,
+						CthPayoutFormula: (string)row.activeconfig_cthpayoutformula,
+						IsValidated: (bool)row.activeconfig_isvalidated,
+						CreatedAt: (DateTime)row.activeconfig_createdat,
+						ValidatedAt: (DateTime?)row.activeconfig_validatedat
 					);
 				}
 				return new GetGroupsResponse(
-					Id: (Guid)row.Id,
-					Name: (string)row.Name,
-					DefaultCourseId: (Guid?)row.DefaultCourseId,
+					Id: (Guid)row.id,
+					Name: (string)row.name,
+					DefaultCourseId: (Guid?)row.defaultcourseid,
 					ActiveFinancialConfiguration: activeConfig,
-					CreatedByGolferId: (Guid)row.CreatedByGolferId,
-					CreatedAt: (DateTime)row.CreatedAt,
-					UpdatedAt: (DateTime)row.UpdatedAt,
-					IsDeleted: (bool)row.IsDeleted,
-					DeletedAt: (DateTime?)row.DeletedAt
+					CreatedByGolferId: (Guid)row.createdbygolferid,
+					CreatedAt: (DateTime)row.createdat,
+					UpdatedAt: (DateTime)row.updatedat,
+					IsDeleted: (bool)row.isdeleted,
+					DeletedAt: (DateTime?)row.deletedat
 				);
 			}).ToList();
 		}

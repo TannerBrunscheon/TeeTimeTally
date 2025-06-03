@@ -56,8 +56,28 @@ const router = createRouter({
     },
     {
       path: '/groups',
-      name: 'groups-index',
-      component: () => import('../views/Groups/GroupsIndex.vue'),
+      name: 'groups',
+      children: [
+        {
+          path: '',
+          name: 'groups-index',
+          component: () => import('../views/Groups/GroupsIndexView.vue'),
+          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
+        },
+        {
+          path: 'create',
+          name: 'create-group',
+          component: () => import('../views/Groups/CreateGroupView.vue'), // This component needs to be created
+          meta: { requiresAuth: true, requiredPermission: Permissions.CreateGroups }
+        },
+        {
+          path: ':groupId',
+          name: 'group-detail',
+          component: () => import('../views/Groups/GroupDetailView.vue'),
+          props: true, // Allows groupId to be passed as a prop
+          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
+        }
+      ]
     },
   ]
 })

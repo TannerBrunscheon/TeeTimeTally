@@ -137,7 +137,6 @@ public class EnsureGolferProfileEndpoint(NpgsqlDataSource dataSource, ILogger<En
 					const string linkAndUpdateSql = @"
                         UPDATE golfers
                         SET auth0_user_id = @Auth0UserId,
-                            full_name = @FullName, 
                             updated_at = NOW()
                         WHERE id = @Id AND auth0_user_id IS NULL AND is_deleted = FALSE -- Extra safety
                         RETURNING id AS Id, auth0_user_id AS Auth0UserId, full_name AS FullName, email AS Email, 

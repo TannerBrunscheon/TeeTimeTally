@@ -35,7 +35,7 @@ public class UpdateGroupRequest
 }
 
 // Response DTOs (ensure these are consistent with other group endpoints or shared)
-public record FinancialConfigurationResponseDTO(
+public record FinancialConfigurationFromUpdateResponseDTO(
 	Guid Id,
 	Guid GroupId,
 	decimal BuyInAmount,
@@ -48,11 +48,11 @@ public record FinancialConfigurationResponseDTO(
 	DateTime? DeletedAt
 );
 
-public record GroupResponse(
+public record UpdateGroupResponse(
 	Guid Id,
 	string Name,
 	Guid? DefaultCourseId,
-	FinancialConfigurationResponseDTO? ActiveFinancialConfiguration,
+	FinancialConfigurationFromUpdateResponseDTO? ActiveFinancialConfiguration,
 	Guid CreatedByGolferId,
 	DateTime CreatedAt,
 	DateTime UpdatedAt,
@@ -153,7 +153,7 @@ public class UpdateGroupRequestValidator : Validator<UpdateGroupRequest>
 public class UpdateGroupEndpoint(
 	NpgsqlDataSource dataSource,
 	ILogger<UpdateGroupEndpoint> logger)
-	: Endpoint<UpdateGroupRequest, GroupResponse>
+	: Endpoint<UpdateGroupRequest, UpdateGroupResponse>
 {
 	public override async Task HandleAsync(UpdateGroupRequest req, CancellationToken ct)
 	{
@@ -334,23 +334,33 @@ public class UpdateGroupEndpoint(
 			return;
 		}
 
-		FinancialConfigurationResponseDTO? activeConfig = null;
-		if (resultRow.ActiveConfig_Id != null)
+		FinancialConfigurationFromUpdateResponseDTO? activeConfig = null;
+		if (resultRow.activeconfig_id != null)
 		{
-			activeConfig = new FinancialConfigurationResponseDTO(
-				Id: (Guid)resultRow.ActiveConfig_Id, GroupId: (Guid)resultRow.ActiveConfig_GroupId,
-				BuyInAmount: (decimal)resultRow.ActiveConfig_BuyInAmount, SkinValueFormula: (string)resultRow.ActiveConfig_SkinValueFormula,
-				CthPayoutFormula: (string)resultRow.ActiveConfig_CthPayoutFormula, IsValidated: (bool)resultRow.ActiveConfig_IsValidated,
-				CreatedAt: (DateTime)resultRow.ActiveConfig_CreatedAt, ValidatedAt: (DateTime?)resultRow.ActiveConfig_ValidatedAt,
-				IsDeleted: (bool)resultRow.ActiveConfig_IsDeleted, DeletedAt: (DateTime?)resultRow.ActiveConfig_DeletedAt
+			activeConfig = new FinancialConfigurationFromUpdateResponseDTO(
+						Id: (Guid)resultRow.activeconfig_id,
+						GroupId: (Guid)resultRow.activeconfig_groupid,
+						BuyInAmount: (decimal)resultRow.activeconfig_buyinamount,
+						SkinValueFormula: (string)resultRow.activeconfig_skinvalueformula,
+						CthPayoutFormula: (string)resultRow.activeconfig_cthpayoutformula,
+						IsValidated: (bool)resultRow.activeconfig_isvalidated,
+						CreatedAt: (DateTime)resultRow.activeconfig_createdat,
+						ValidatedAt: (DateTime?)resultRow.activeconfig_validatedat,
+						IsDeleted: (bool)resultRow.isdeleted, 
+						DeletedAt: (DateTime?)resultRow.deletedat
 			);
 		}
 
-		var updatedGroupResponse = new GroupResponse(
-			Id: (Guid)resultRow.Id, Name: (string)resultRow.Name, DefaultCourseId: (Guid?)resultRow.DefaultCourseId,
-			ActiveFinancialConfiguration: activeConfig, CreatedByGolferId: (Guid)resultRow.CreatedByGolferId,
-			CreatedAt: (DateTime)resultRow.CreatedAt, UpdatedAt: (DateTime)resultRow.UpdatedAt,
-			IsDeleted: (bool)resultRow.IsDeleted, DeletedAt: (DateTime?)resultRow.DeletedAt
+		var updatedGroupResponse = new UpdateGroupResponse(
+				Id: (Guid)resultRow.id,
+					Name: (string)resultRow.name,
+					DefaultCourseId: (Guid?)resultRow.defaultcourseid,
+					ActiveFinancialConfiguration: activeConfig,
+					CreatedByGolferId: (Guid)resultRow.createdbygolferid,
+					CreatedAt: (DateTime)resultRow.createdat,
+					UpdatedAt: (DateTime)resultRow.updatedat,
+					IsDeleted: (bool)resultRow.isdeleted,
+					DeletedAt: (DateTime?)resultRow.deletedat
 		);
 
 		await SendOkAsync(updatedGroupResponse, ct);

@@ -24,7 +24,7 @@ public record GetGroupFinancialConfigurationResponseDTO(
 	DateTime? ValidatedAt
 );
 
-public record GetGroupResponse(
+public record GetGroupByIdResponse(
 	Guid Id,
 	string Name,
 	Guid? DefaultCourseId,
@@ -37,7 +37,7 @@ public record GetGroupResponse(
 );
 
 [HttpGet("/groups/{Id}"), Authorize(Policy = Auth0Scopes.ReadGroups)]
-public class GetGroupByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupByIdEndpoint> logger) : Endpoint<GetGroupByIdRequest, GetGroupResponse>
+public class GetGroupByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupByIdEndpoint> logger) : Endpoint<GetGroupByIdRequest, GetGroupByIdResponse>
 {
 	public override async Task HandleAsync(GetGroupByIdRequest req, CancellationToken ct)
 	{
@@ -64,7 +64,7 @@ public class GetGroupByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupB
                 ON g.active_financial_configuration_id = gfc.id AND gfc.is_deleted = FALSE
             WHERE g.id = @Id AND g.is_deleted = FALSE;";
 
-		GetGroupResponse? groupResponse = null;
+		GetGroupByIdResponse? groupResponse = null;
 
 		try
 		{
@@ -74,30 +74,30 @@ public class GetGroupByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupB
 			if (resultRow != null)
 			{
 				GetGroupFinancialConfigurationResponseDTO? activeConfig = null;
-				if (resultRow.ActiveConfig_Id != null)
+				if (resultRow.activeconfig_id != null)
 				{
 					activeConfig = new GetGroupFinancialConfigurationResponseDTO(
-						Id: (Guid)resultRow.ActiveConfig_Id,
-						GroupId: (Guid)resultRow.ActiveConfig_GroupId,
-						BuyInAmount: (decimal)resultRow.ActiveConfig_BuyInAmount,
-						SkinValueFormula: (string)resultRow.ActiveConfig_SkinValueFormula,
-						CthPayoutFormula: (string)resultRow.ActiveConfig_CthPayoutFormula,
-						IsValidated: (bool)resultRow.ActiveConfig_IsValidated,
-						CreatedAt: (DateTime)resultRow.ActiveConfig_CreatedAt,
-						ValidatedAt: (DateTime?)resultRow.ActiveConfig_ValidatedAt
+						Id: (Guid)resultRow.activeconfig_id,
+						GroupId: (Guid)resultRow.activeconfig_groupid,
+						BuyInAmount: (decimal)resultRow.activeconfig_buyinamount,
+						SkinValueFormula: (string)resultRow.activeconfig_skinvalueformula,
+						CthPayoutFormula: (string)resultRow.activeconfig_cthpayoutformula,
+						IsValidated: (bool)resultRow.activeconfig_isvalidated,
+						CreatedAt: (DateTime)resultRow.activeconfig_createdat,
+						ValidatedAt: (DateTime?)resultRow.activeconfig_validatedat
 					);
 				}
 
-				groupResponse = new GetGroupResponse(
-					Id: (Guid)resultRow.Id,
-					Name: (string)resultRow.Name,
-					DefaultCourseId: (Guid?)resultRow.DefaultCourseId,
+				groupResponse = new GetGroupByIdResponse(
+					Id: (Guid)resultRow.id,
+					Name: (string)resultRow.name,
+					DefaultCourseId: (Guid?)resultRow.defaultcourseid,
 					ActiveFinancialConfiguration: activeConfig,
-					CreatedByGolferId: (Guid)resultRow.CreatedByGolferId,
-					CreatedAt: (DateTime)resultRow.CreatedAt,
-					UpdatedAt: (DateTime)resultRow.UpdatedAt,
-					IsDeleted: (bool)resultRow.IsDeleted,
-					DeletedAt: (DateTime?)resultRow.DeletedAt
+					CreatedByGolferId: (Guid)resultRow.createdbygolferid,
+					CreatedAt: (DateTime)resultRow.createdat,
+					UpdatedAt: (DateTime)resultRow.updatedat,
+					IsDeleted: (bool)resultRow.isdeleted,
+					DeletedAt: (DateTime?)resultRow.deletedat
 				);
 			}
 		}

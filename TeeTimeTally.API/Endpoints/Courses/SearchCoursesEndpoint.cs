@@ -37,7 +37,7 @@ public class SearchCoursesRequest
 public record SearchCoursesResponse(
 	Guid Id,
 	string Name,
-	int CthHoleNumber,
+	short CthHoleNumber,
 	DateTime CreatedAt,
 	DateTime UpdatedAt,
 	bool IsDeleted,      // Will be false for results from this query
