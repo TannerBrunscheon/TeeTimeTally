@@ -25,7 +25,7 @@ public class ListGroupMembersRequest
 	public Guid GroupId { get; set; }
 }
 
-public record GroupMemberResponse(
+public record ListGroupMembersResponse(
 	Guid GolferId,
 	string FullName,
 	string Email,
@@ -37,7 +37,7 @@ public record GroupMemberResponse(
 file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 
 [FastEndpoints.HttpGet("/groups/{GroupId:guid}/members"), Authorize(Policy = Auth0Scopes.ReadGroups)]
-public class ListGroupMembersEndpoint : Endpoint<ListGroupMembersRequest, IEnumerable<GroupMemberResponse>>
+public class ListGroupMembersEndpoint : Endpoint<ListGroupMembersRequest, IEnumerable<ListGroupMembersResponse>>
 {
 	private readonly NpgsqlDataSource _dataSource;
 	private readonly ILogger<ListGroupMembersEndpoint> _logger;
@@ -118,11 +118,11 @@ public class ListGroupMembersEndpoint : Endpoint<ListGroupMembersRequest, IEnume
               AND g.is_deleted = FALSE -- Only include active golfers in the member list
             ORDER BY g.full_name;";
 
-		IEnumerable<GroupMemberResponse> members;
+		IEnumerable<ListGroupMembersResponse> members;
 
 		try
 		{
-			members = await connection.QueryAsync<GroupMemberResponse>(sql, new { req.GroupId });
+			members = await connection.QueryAsync<ListGroupMembersResponse>(sql, new { req.GroupId });
 		}
 		catch (Exception ex)
 		{
@@ -135,6 +135,6 @@ public class ListGroupMembersEndpoint : Endpoint<ListGroupMembersRequest, IEnume
 			return;
 		}
 
-		await SendOkAsync(members ?? Enumerable.Empty<GroupMemberResponse>(), ct);
+		await SendOkAsync(members ?? Enumerable.Empty<ListGroupMembersResponse>(), ct);
 	}
 }

@@ -22,7 +22,7 @@ public class SetGroupMemberScorerStatusRequest
 }
 
 // Re-using GroupMemberResponse definition or define here for co-location
-public record GroupMemberResponse(
+public record SetGroupMemberScorerStatusResponse(
 	Guid GolferId,
 	string FullName,
 	string Email,
@@ -88,7 +88,7 @@ public class SetGroupMemberScorerStatusRequestValidator : Validator<SetGroupMemb
 
 [FastEndpoints.HttpPut("/groups/{GroupId:guid}/members/{MemberGolferId:guid}/scorer-status"), Authorize(Policy = Auth0Scopes.ManageGroupScorers)]
 public class SetGroupMemberScorerStatusEndpoint(NpgsqlDataSource dataSource, ILogger<SetGroupMemberScorerStatusEndpoint> logger)
-	: Endpoint<SetGroupMemberScorerStatusRequest, GroupMemberResponse>
+	: Endpoint<SetGroupMemberScorerStatusRequest, SetGroupMemberScorerStatusResponse>
 {
 	public override async Task HandleAsync(SetGroupMemberScorerStatusRequest req, CancellationToken ct)
 	{
@@ -190,7 +190,7 @@ public class SetGroupMemberScorerStatusEndpoint(NpgsqlDataSource dataSource, ILo
             INNER JOIN golfers g ON gm.golfer_id = g.id
             WHERE gm.group_id = @GroupId AND gm.golfer_id = @MemberGolferId AND g.is_deleted = FALSE;";
 
-		var updatedMemberResponse = await connection.QuerySingleOrDefaultAsync<GroupMemberResponse>(selectMemberSql,
+		var updatedMemberResponse = await connection.QuerySingleOrDefaultAsync<SetGroupMemberScorerStatusResponse>(selectMemberSql,
 			new { req.GroupId, req.MemberGolferId });
 
 		if (updatedMemberResponse == null)
