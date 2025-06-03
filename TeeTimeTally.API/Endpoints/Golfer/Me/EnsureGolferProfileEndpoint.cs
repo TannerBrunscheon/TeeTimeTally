@@ -165,6 +165,7 @@ public class EnsureGolferProfileEndpoint(NpgsqlDataSource dataSource, ILogger<En
 					finalProfileResponse = await connection.QuerySingleAsync<GolferProfileResponse>(insertNewGolferSql, new
 					{
 						Auth0UserId = auth0UserIdFromClaims,
+						FullName = emailFromClaims,
 						Email = emailFromClaims
 					}, transaction);
 				}

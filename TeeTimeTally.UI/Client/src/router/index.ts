@@ -30,8 +30,9 @@ const router = createRouter({
         {
           path: 'profile',
           name: 'authentication-profile',
-          component: () => import('../views/Groups/GroupsIndex.vue')
-        }
+          component: () => import('../views/Authentication/ProfileView.vue'),
+          meta: { requiresAuth: true }
+        },
       ]
     },
     {
