@@ -9,11 +9,6 @@ const courseStore = useCourseStore()
 const courses = ref<Course[]>()
 
 onMounted(async () => {
-  const result = await courseStore.getCourses()
-
-  if (result.isSuccess) {
-    courses.value = result?.value
-  }
 })
 </script>
 <template>
