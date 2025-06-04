@@ -69,7 +69,7 @@ function formatDate(dateString: string | null | undefined) {
   <div class="container mt-4 mb-5"> <!-- Added mb-5 for bottom margin -->
     <div class="d-flex justify-content-between align-items-center mb-3">
       <h1>Golf Courses</h1>
-      <RouterLink v-if="canCreateCourses" to="/courses/create" class="btn btn-primary rounded-pill">
+      <RouterLink v-if="canCreateCourses" :to="{ name: 'create-course' }" class="btn btn-primary rounded-pill">
         <i class="bi bi-plus-circle"></i> Create New Course
       </RouterLink>
     </div>
