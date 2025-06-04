@@ -89,14 +89,14 @@ const router = createRouter({
           meta: { requiresAuth: true, requiredPermission: Permissions.ReadCourses }
         },
         {
-          path: 'new', // Or your preferred path
+          path: 'new',
           name: 'create-course',
           component: () => import('../views/Courses/CreateCourseView.vue'), // Create this component
           meta: { requiresAuth: true, requiresPermission: Permissions.CreateCourses }
         },
         {
-          path: ':roundId/overview', // Or similar
-          name: 'round-overview',
+          path: ':courseId',
+          name: 'course-overview',
           component: () => import('../views/Courses/CourseOverviewView.vue'), // Create this component
           props: true, // To pass roundId as a prop
           meta: { requiresAuth: true, requiresPermission: Permissions.ReadCourses }
