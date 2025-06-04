@@ -13,7 +13,7 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 {
 	protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ScopeAuthorizationRequirement requirement)
 	{
-		ILogger<ScopeAuthorizationHandler> logger = null;
+		ILogger<ScopeAuthorizationHandler>? logger = null;
 		if (context.Resource is HttpContext httpContext)
 		{
 			logger = httpContext.RequestServices.GetRequiredService<ILogger<ScopeAuthorizationHandler>>();
