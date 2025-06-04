@@ -33,31 +33,31 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 		}
 
 		// Auth0 typically puts permissions in a 'permissions' claim (custom claim type)
-		// Or sometimes in the 'scope' claim (space-separated string)
-		var permissionsClaim = context.User.FindFirst("permissions"); // Check for the 'permissions' claim
+		// Make sure the Split is correct and log the result
+		var permissionsClaim = context.User.FindFirst("permissions"); // This is what you want to find
+																	  // Fallback to 'scope' if 'permissions' not found, but prioritize 'permissions'
+		permissionsClaim ??= context.User.FindFirst("scope");
+
 		if (permissionsClaim == null)
 		{
-			// Fallback to 'scope' claim if 'permissions' is not found
-			permissionsClaim = context.User.FindFirst("scope");
-			if (permissionsClaim == null)
-			{
-				logger?.LogWarning("AuthZ: Neither 'permissions' nor 'scope' claim found in JWT for user '{UserName}'.", context.User.Identity?.Name ?? "Unknown");
-				context.Fail();
-				return Task.CompletedTask;
-			}
+			logger?.LogWarning("AuthZ: Neither 'permissions' nor 'scope' claim found in JWT for user '{UserName}'. Failing authorization.", context.User.Identity?.Name ?? "Unknown");
+			context.Fail();
+			return Task.CompletedTask;
 		}
 
-		var userPermissions = permissionsClaim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-		logger?.LogInformation("AuthZ: User has permissions: {UserPermissions}", string.Join(", ", userPermissions));
+		// This is where the splitting and parsing happens
+		var userPermissions = permissionsClaim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); // Add TrimEntries for robustness
+		logger?.LogInformation("AuthZ: User has PARSED permissions: [{UserPermissions}] (from claim: '{ClaimValue}')", string.Join(", ", userPermissions), permissionsClaim.Value);
 
-		if (userPermissions.Contains(requirement.Scope))
+		// Now, perform the Contains check, ideally using StringComparer.OrdinalIgnoreCase for robustness
+		if (userPermissions.Contains(requirement.Scope, StringComparer.OrdinalIgnoreCase)) // Use case-insensitive comparison
 		{
 			logger?.LogInformation("AuthZ: User has required permission '{RequiredScope}'. Succeeded.", requirement.Scope);
 			context.Succeed(requirement);
 		}
 		else
 		{
-			logger?.LogWarning("AuthZ: User DOES NOT have required permission '{RequiredScope}'. Failing.", requirement.Scope);
+			logger?.LogWarning("AuthZ: User DOES NOT have required permission '{RequiredScope}'. Failing. User permissions were: [{UserPermissions}]", requirement.Scope, string.Join(", ", userPermissions));
 			context.Fail();
 		}
 
