@@ -8,7 +8,9 @@
 			]
 		},
 		"watchPatterns": [
-			"/TeeTimeTally.UI/**"
+			"/TeeTimeTally.UI/**",
+			"/build/Dockerfiles/UI.Dockerfile",
+			"/build/Railway/ui.railway.json"
 		],
 		"dockerfilePath": "/build/Dockerfiles/UI.Dockerfile"
 	},

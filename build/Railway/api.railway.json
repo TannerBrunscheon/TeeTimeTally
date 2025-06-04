@@ -3,7 +3,9 @@
 	"build": {
 		"builder": "DOCKERFILE",
 		"watchPatterns": [
-			"/TeeTimeTally.API/*"
+			"/TeeTimeTally.API/*",
+			"/build/Dockerfiles/API.Dockerfile",
+			"/build/Railway/api.railway.json"
 		],
 		"dockerfilePath": "/build/Dockerfiles/API.Dockerfile"
 	},
