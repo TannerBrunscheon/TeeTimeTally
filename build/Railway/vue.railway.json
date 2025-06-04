@@ -9,7 +9,8 @@
 		},
 		"watchPatterns": [
 			"/TeeTimeTally.UI/Client/**"
-		]
+		],
+		"dockerfilePath": "/build/Dockerfiles/Vue.Dockerfile"
 	},
 	"deploy": {
 		"runtime": "V2",
