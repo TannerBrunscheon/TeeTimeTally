@@ -1,5 +1,11 @@
 ﻿// TeeTimeTally.API/Identity/ScopeAuthorizationHandler.cs
 using Microsoft.AspNetCore.Authorization;
+using System.Linq;
+using System.Threading.Tasks;
+using Microsoft.Extensions.Logging;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using System.Security.Claims; // Needed for ClaimTypes
 
 namespace TeeTimeTally.API.Identity;
 
@@ -7,50 +13,65 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 {
 	protected override Task HandleRequirementAsync(AuthorizationHandlerContext context, ScopeAuthorizationRequirement requirement)
 	{
-		// Access logger via HttpContext if available, or inject if possible
-		ILogger<ScopeAuthorizationHandler>? logger;
+		ILogger<ScopeAuthorizationHandler> logger = null;
 		if (context.Resource is HttpContext httpContext)
 		{
 			logger = httpContext.RequestServices.GetRequiredService<ILogger<ScopeAuthorizationHandler>>();
 		}
-		else if (context.Resource is Endpoint endpoint) // For Minimal APIs
+		else if (context.Resource is Endpoint endpoint)
 		{
 			logger = endpoint.Metadata.GetMetadata<ILogger<ScopeAuthorizationHandler>>();
 		}
-		else
-		{
-			return Task.CompletedTask;
-		}
-		// Fallback if logger cannot be resolved this way (should be resolved via DI usually)
 
 		logger?.LogInformation("AuthZ: Handling requirement '{RequirementScope}' for user '{UserName}'.", requirement.Scope, context.User.Identity?.Name ?? "Unknown");
 
-		// Log all claims present in the Principal
 		logger?.LogInformation("AuthZ: Claims for user '{UserName}':", context.User.Identity?.Name ?? "Unknown");
 		foreach (var claim in context.User.Claims)
 		{
 			logger?.LogInformation("  Claim: Type='{ClaimType}', Value='{ClaimValue}'", claim.Type, claim.Value);
 		}
 
-		// Auth0 typically puts permissions in a 'permissions' claim (custom claim type)
-		// Make sure the Split is correct and log the result
-		var permissionsClaim = context.User.FindFirst("permissions"); // This is what you want to find
-																	  // Fallback to 'scope' if 'permissions' not found, but prioritize 'permissions'
-		permissionsClaim ??= context.User.FindFirst("scope");
+		// --- THE CRITICAL CHANGE IS HERE ---
+		// Auth0 typically sends permissions as multiple claims of type "permissions"
+		// or as a single "scope" claim with space-separated values.
+		// We need to gather all of them.
 
-		if (permissionsClaim == null)
+		var userPermissions = new HashSet<string>(StringComparer.OrdinalIgnoreCase); // Use HashSet for efficient lookup and case-insensitivity
+
+		// 1. Check for individual "permissions" claims (most common for Auth0 custom scopes)
+		foreach (var permissionClaim in context.User.FindAll("permissions"))
 		{
-			logger?.LogWarning("AuthZ: Neither 'permissions' nor 'scope' claim found in JWT for user '{UserName}'. Failing authorization.", context.User.Identity?.Name ?? "Unknown");
-			context.Fail();
-			return Task.CompletedTask;
+			// If the claim value itself is a space-separated string (less common for 'permissions' but possible)
+			if (permissionClaim.Value.Contains(' '))
+			{
+				foreach (var p in permissionClaim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+				{
+					userPermissions.Add(p);
+				}
+			}
+			else // It's a single permission value
+			{
+				userPermissions.Add(permissionClaim.Value.Trim());
+			}
 		}
 
-		// This is where the splitting and parsing happens
-		var userPermissions = permissionsClaim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries); // Add TrimEntries for robustness
-		logger?.LogInformation("AuthZ: User has PARSED permissions: [{UserPermissions}] (from claim: '{ClaimValue}')", string.Join(", ", userPermissions), permissionsClaim.Value);
+		// 2. Fallback: Check the "scope" claim if "permissions" claims weren't found or if it's the primary source
+		// This is usually for OIDC scopes, but can contain custom API scopes too.
+		if (userPermissions.Count == 0) // Only check 'scope' if 'permissions' claims didn't yield anything
+		{
+			var scopeClaim = context.User.FindFirst("scope");
+			if (scopeClaim != null)
+			{
+				foreach (var p in scopeClaim.Value.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+				{
+					userPermissions.Add(p);
+				}
+			}
+		}
 
-		// Now, perform the Contains check, ideally using StringComparer.OrdinalIgnoreCase for robustness
-		if (userPermissions.Contains(requirement.Scope, StringComparer.OrdinalIgnoreCase)) // Use case-insensitive comparison
+		logger?.LogInformation("AuthZ: User has PARSED permissions: [{UserPermissions}]", string.Join(", ", userPermissions));
+
+		if (userPermissions.Contains(requirement.Scope))
 		{
 			logger?.LogInformation("AuthZ: User has required permission '{RequiredScope}'. Succeeded.", requirement.Scope);
 			context.Succeed(requirement);
