@@ -85,3 +85,4 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 		return Task.CompletedTask;
 	}
 }
+
