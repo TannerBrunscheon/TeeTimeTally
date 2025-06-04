@@ -32,3 +32,4 @@ export interface CreateGolferRequest {
 // If the C# CreateGolferResponse had different fields, we would define a separate interface.
 // For now, CreateGolferResponse (TS) will be an alias for Golfer.
 export type CreateGolferResponse = Golfer;
+
