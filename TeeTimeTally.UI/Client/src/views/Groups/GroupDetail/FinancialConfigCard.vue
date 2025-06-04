@@ -400,7 +400,7 @@ const isSaveButtonDisabled = computed(() => {
           <div class="accordion-item">
             <h2 class="accordion-header" id="headingValidation">
               <button class="accordion-button" type="button" data-bs-toggle="collapse"
-                data-bs-target="#collapseValidation" :aria-expanded="showValidationDrawer.toString()"
+                data-bs-target="#collapseValidation" :aria-expanded="showValidationDrawer"
                 aria-controls="collapseValidation" :class="{ 'collapsed': !showValidationDrawer }"
                 @click="showValidationDrawer = !showValidationDrawer">
                 Validation Details (6-30 Players)
