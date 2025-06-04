@@ -36,8 +36,8 @@ builder.Services.AddReverseProxy()
 			var accessToken = await request.HttpContext.GetTokenAsync("access_token");
 			if (!string.IsNullOrEmpty(accessToken))
 			{
-				logger.LogInformation("BFF: Found access token for forwarding. Length: {TokenLength}", accessToken.Length);
 				logger.LogInformation("BFF: Access Token: {Token}", accessToken);
+				logger.LogInformation("BFF: Found access token for forwarding. Length: {TokenLength}", accessToken.Length);
 				request.ProxyRequest.Headers.Remove("Authorization");
 				request.ProxyRequest.Headers.Add("Authorization", $"Bearer {accessToken}");
 			}
