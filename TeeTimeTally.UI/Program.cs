@@ -32,11 +32,17 @@ builder.Services.AddReverseProxy()
 	{
 		context.AddRequestTransform(async request =>
 		{
+			var logger = context.Services.GetRequiredService<ILogger<Program>>();
 			var accessToken = await request.HttpContext.GetTokenAsync("access_token");
 			if (!string.IsNullOrEmpty(accessToken))
 			{
+				logger.LogInformation("BFF: Found access token for forwarding. Length: {TokenLength}", accessToken.Length);
 				request.ProxyRequest.Headers.Remove("Authorization");
 				request.ProxyRequest.Headers.Add("Authorization", $"Bearer {accessToken}");
+			}
+			else
+			{
+				logger.LogWarning("BFF: Access token NOT found in HttpContext for forwarding to API.");
 			}
 		});
 	});
@@ -261,28 +267,28 @@ app.MapGet("/api/authentication/user-info", async (
 	}
 
 	// 3. Merge and return
-	if (dbProfile != null && !dbProfile.IsDeleted) 
+	if (dbProfile != null && !dbProfile.IsDeleted)
 	{
 		var comprehensiveInfo = new UserInfoResponse(
 			Id: dbProfile.Id,
 			Auth0UserId: dbProfile.Auth0UserId,
-			FullName: dbProfile.FullName,    
-			Email: dbProfile.Email,           
+			FullName: dbProfile.FullName,
+			Email: dbProfile.Email,
 			IsSystemAdmin: dbProfile.IsSystemAdmin,
 			CreatedAt: dbProfile.CreatedAt,
 			UpdatedAt: dbProfile.UpdatedAt,
-			ProfileImage: pictureFromClaims,  
-			Roles: rolesFromClaims,           
+			ProfileImage: pictureFromClaims,
+			Roles: rolesFromClaims,
 			Permissions: permissionsFromClaims
 		);
 		return TypedResults.Ok(comprehensiveInfo);
 	}
 	else
 	{
-		
+
 		logger.LogWarning("DB profile for user {Auth0UserId} was null or marked as deleted after attempting to fetch from API. Returning based on claims or potential error.", auth0UserIdFromClaims);
 
-		
+
 		if (dbProfile == null)
 		{
 			return Results.Problem(
