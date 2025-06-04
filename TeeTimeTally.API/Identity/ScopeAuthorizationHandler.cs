@@ -17,6 +17,10 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 		{
 			logger = endpoint.Metadata.GetMetadata<ILogger<ScopeAuthorizationHandler>>();
 		}
+		else
+		{
+			return Task.CompletedTask;
+		}
 		// Fallback if logger cannot be resolved this way (should be resolved via DI usually)
 
 		logger?.LogInformation("AuthZ: Handling requirement '{RequirementScope}' for user '{UserName}'.", requirement.Scope, context.User.Identity?.Name ?? "Unknown");
