@@ -53,14 +53,17 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 		{
 			ValidIssuer = builder.Configuration["Auth0:Domain"],
 			NameClaimType = ClaimTypes.NameIdentifier,
-			RoleClaimType = ClaimTypes.Role,
+			// IMPORTANT: Change RoleClaimType to "permissions"
+			// This is crucial for Auth0 JWTs where permissions are in a 'permissions' array claim.
+			RoleClaimType = "permissions", // <--- THIS IS THE KEY CHANGE
 			ValidateLifetime = true,
-			//IssuerSigningKeyResolver = (token, securityToken, kid, parameters) => {
-			//    // If you want to inspect how keys are resolved, though Authority should handle this.
-			//    // This is more for advanced scenarios.
-			//    return new List<SecurityKey>();
-			//},
-			AuthenticationType = JwtBearerDefaults.AuthenticationScheme // Added this line
+			// IssuerSigningKeyResolver is usually not needed unless you have custom key retrieval logic
+			// IssuerSigningKeyResolver = (token, securityToken, kid, parameters) => {
+			//     return new List<SecurityKey>();
+			// },
+			// AuthenticationType is generally not set here; it's handled by the scheme name.
+			// Removing it to avoid potential conflicts or redundancy.
+			// AuthenticationType = JwtBearerDefaults.AuthenticationScheme // Removed this line
 		};
 		options.Events = new JwtBearerEvents
 		{
@@ -73,6 +76,12 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 			OnTokenValidated = context =>
 			{
 				Console.WriteLine("API Token Validated for: " + context.Principal!.Identity!.Name);
+				// You can add more logging here to see the claims after JwtBearer processing
+				Console.WriteLine("Claims after JwtBearer validation:");
+				foreach (var claim in context.Principal.Claims)
+				{
+					Console.WriteLine($"  Type: {claim.Type}, Value: {claim.Value}");
+				}
 				return Task.CompletedTask;
 			},
 			OnChallenge = context =>
