@@ -1,10 +1,3 @@
-// Represents a summary of a course, typically for lists/dropdowns
-export interface CourseSummary {
-  id: string;
-  name: string;
-  // You can add other relevant summary properties if needed, e.g., city, state
-}
-
 // Represents the financial configuration associated with a group
 export interface GroupFinancialConfiguration {
   id: string;
