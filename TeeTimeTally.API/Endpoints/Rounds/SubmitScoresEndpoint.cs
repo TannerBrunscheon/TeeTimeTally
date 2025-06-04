@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 namespace TeeTimeTally.API.Features.Rounds.Endpoints.SubmitScores;
@@ -31,7 +32,6 @@ public record SubmitScoresResponse(
 	string? RoundStatusAfterSubmit // New field to indicate if round became "Completed"
 );
 
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 file record RoundValidationInfo(Guid Id, string Status, Guid GroupId);
 file record TeamInRoundInfo(Guid TeamId, string TeamNameOrNumber);
 file record StoredScoreInfo(Guid TeamId, int HoleNumber, int Score);

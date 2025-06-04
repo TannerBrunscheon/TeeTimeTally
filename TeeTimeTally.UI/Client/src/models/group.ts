@@ -1,3 +1,10 @@
+// Represents a summary of a course, typically for lists/dropdowns
+export interface CourseSummary {
+  id: string;
+  name: string;
+  // You can add other relevant summary properties if needed, e.g., city, state
+}
+
 // Represents the financial configuration associated with a group
 export interface GroupFinancialConfiguration {
   id: string;
@@ -34,12 +41,26 @@ export interface Group {
   deletedAt: string | null;
 }
 
-// Represents the request DTO for updating a group
+// Input DTO for creating the financial configuration part of a new group
+export interface CreateGroupFinancialConfigurationInputDTO {
+  buyInAmount: number;
+  skinValueFormula: string;
+  cthPayoutFormula: string;
+}
+
+// Represents the request DTO for creating a new group
+export interface CreateGroupRequest {
+  name: string;
+  defaultCourseId?: string | null; // Optional
+  optionalInitialFinancials?: CreateGroupFinancialConfigurationInputDTO | null; // Optional
+}
+
+export interface CreateGroupResponse extends Group {}
 export interface UpdateGroupRequest {
   name?: string;
   defaultCourseId?: string | null;
   existingActiveFinancialConfigurationId?: string | null;
-  newFinancials?: {
+  newFinancials?: { // This matches CreateGroupFinancialConfigurationInputDTO
     buyInAmount: number;
     skinValueFormula: string;
     cthPayoutFormula: string;

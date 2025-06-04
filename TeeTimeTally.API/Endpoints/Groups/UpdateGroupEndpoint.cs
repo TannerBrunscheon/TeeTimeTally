@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; // For FromRoute
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.API.Services; // For IFinancialValidationService
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
@@ -60,8 +61,6 @@ public record UpdateGroupResponse(
 	DateTime? DeletedAt
 );
 
-// Helper for fetching current user's golfer ID and admin status
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 // Helper to fetch current group details
 file record CurrentGroupData(
 	string CurrentName,

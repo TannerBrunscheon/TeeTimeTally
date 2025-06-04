@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; // For FromRoute
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 namespace TeeTimeTally.API.Endpoints.Groups.GroupManagement;
@@ -30,8 +31,6 @@ public record SetGroupMemberScorerStatusResponse(
 	DateTime JoinedAt
 );
 
-// Helper for fetching current user's golfer ID and admin status
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 
 // --- Fluent Validator for SetGroupMemberScorerStatusRequest ---
 public class SetGroupMemberScorerStatusRequestValidator : Validator<SetGroupMemberScorerStatusRequest>

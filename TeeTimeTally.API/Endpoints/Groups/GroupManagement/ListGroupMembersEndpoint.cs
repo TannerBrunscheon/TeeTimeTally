@@ -12,6 +12,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using TeeTimeTally.API.Models;
 
 namespace TeeTimeTally.API.Features.Groups.Endpoints.ListGroupMembers;
 
@@ -33,8 +34,6 @@ public record ListGroupMembersResponse(
 	DateTime JoinedAt
 );
 
-// Helper for fetching current user's golfer ID and admin status
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 
 [FastEndpoints.HttpGet("/groups/{GroupId:guid}/members"), Authorize(Policy = Auth0Scopes.ReadGroups)]
 public class ListGroupMembersEndpoint : Endpoint<ListGroupMembersRequest, IEnumerable<ListGroupMembersResponse>>

@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; 
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth;
 
 namespace TeeTimeTally.API.Features.Groups.Endpoints.RemoveGolfersFromGroup;
@@ -24,9 +25,6 @@ public record RemoveGolfersFromGroupResponse(
 	int RequestedToRemoveCount,
 	int SuccessfullyRemovedCount
 );
-
-// Helper for fetching current user's golfer ID and admin status
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 
 // --- Fluent Validator for RemoveGolfersFromGroupRequest ---
 public class RemoveGolfersFromGroupRequestValidator : Validator<RemoveGolfersFromGroupRequest>

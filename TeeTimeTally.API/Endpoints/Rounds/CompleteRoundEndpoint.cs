@@ -14,6 +14,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Globalization;
 using FluentValidation;
+using TeeTimeTally.API.Models;
 
 namespace TeeTimeTally.API.Features.Rounds.Endpoints.CompleteRound;
 
@@ -58,7 +59,6 @@ file record RoundDetailsForCompletion(
 );
 file record TeamInfoForRound(Guid Id, string TeamNameOrNumber);
 file record ParticipantInfoForRound(Guid GolferId, string FullName, Guid TeamId);
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 file record StoredScoreInfo(Guid TeamId, int HoleNumber, int Score);
 file record TeamTotalScore(Guid TeamId, string TeamNameOrNumber, int TotalScore);
 

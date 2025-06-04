@@ -3,6 +3,8 @@ using FastEndpoints;
 using Microsoft.AspNetCore.Authorization;
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Features.Groups.Endpoints.UpdateGroup;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.API.Services;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
@@ -51,20 +53,26 @@ public class CreateGroupEndpoint(NpgsqlDataSource dataSource, ILogger<CreateGrou
 {
 	public override async Task HandleAsync(CreateGroupRequest req, CancellationToken ct)
 	{
-		var creatorGolferIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-		if (string.IsNullOrEmpty(creatorGolferIdString) || !Guid.TryParse(creatorGolferIdString, out var creatorGolferId))
+		var auth0UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+		if (string.IsNullOrEmpty(auth0UserId))
 		{
-			var unauthorizedProblem = TypedResults.Problem(
-				title: "Unauthorized", detail: "User identifier is missing or invalid.", statusCode: StatusCodes.Status401Unauthorized);
-			await SendResultAsync(unauthorizedProblem);
+			await SendResultAsync(TypedResults.Problem(title: "Unauthorized", detail: "User identifier not found.", statusCode: StatusCodes.Status401Unauthorized));
 			return;
 		}
 
 		Guid newGroupId = Guid.NewGuid();
-		Guid? newFinancialConfigId = null;
-
 		await using var connection = await dataSource.OpenConnectionAsync(ct);
 		await using var transaction = await connection.BeginTransactionAsync(ct);
+
+		var currentUserInfo = await connection.QuerySingleOrDefaultAsync<CurrentUserGolferInfo>(
+			"SELECT id AS Id, is_system_admin AS IsSystemAdmin FROM golfers WHERE auth0_user_id = @Auth0UserId AND is_deleted = FALSE;",
+			new { Auth0UserId = auth0UserId });
+
+		if (currentUserInfo == null)
+		{
+			await SendResultAsync(TypedResults.Problem(title: "Forbidden", detail: "User profile not found or inactive.", statusCode: StatusCodes.Status403Forbidden));
+			return;
+		}
 
 		try
 		{
@@ -78,7 +86,7 @@ public class CreateGroupEndpoint(NpgsqlDataSource dataSource, ILogger<CreateGrou
 				Id = newGroupId,
 				req.Name,
 				req.DefaultCourseId,
-				CreatedByGolferId = creatorGolferId
+				CreatedByGolferId = currentUserInfo.Id
 			}, transaction);
 
 			if (req.OptionalInitialFinancials != null)
@@ -116,14 +124,13 @@ public class CreateGroupEndpoint(NpgsqlDataSource dataSource, ILogger<CreateGrou
                     VALUES (@GroupId, @BuyInAmount, @SkinValueFormula, @CthPayoutFormula, TRUE, NOW())
                     RETURNING id;";
 
-				newFinancialConfigId = await connection.ExecuteScalarAsync<Guid>(insertFinancialsSql, new
+				Guid? newFinancialConfigId = await connection.ExecuteScalarAsync<Guid>(insertFinancialsSql, new
 				{
 					GroupId = newGroupId,
 					req.OptionalInitialFinancials.BuyInAmount,
 					req.OptionalInitialFinancials.SkinValueFormula,
 					req.OptionalInitialFinancials.CthPayoutFormula
 				}, transaction);
-
 				const string updateGroupSql = @"
                     UPDATE groups 
                     SET active_financial_configuration_id = @ActiveFinancialConfigId, updated_at = NOW()
@@ -169,24 +176,35 @@ public class CreateGroupEndpoint(NpgsqlDataSource dataSource, ILogger<CreateGrou
 			}
 
 			CreateGroupFinancialConfigurationResponseDTO? activeConfig = null;
-			if (resultRow.GfcId != null) // Check if financial config data exists
+			if (resultRow.activeconfig_id != null)
 			{
 				activeConfig = new CreateGroupFinancialConfigurationResponseDTO(
-					(Guid)resultRow.GfcId, (Guid)resultRow.GfcGroupId, (decimal)resultRow.GfcBuyInAmount,
-					(string)resultRow.GfcSkinValueFormula, (string)resultRow.GfcCthPayoutFormula, (bool)resultRow.GfcIsValidated,
-					(DateTime)resultRow.GfcCreatedAt, (DateTime?)resultRow.GfcValidatedAt
+							Id: (Guid)resultRow.activeconfig_id,
+							GroupId: (Guid)resultRow.activeconfig_groupid,
+							BuyInAmount: (decimal)resultRow.activeconfig_buyinamount,
+							SkinValueFormula: (string)resultRow.activeconfig_skinvalueformula,
+							CthPayoutFormula: (string)resultRow.activeconfig_cthpayoutformula,
+							IsValidated: (bool)resultRow.activeconfig_isvalidated,
+							CreatedAt: (DateTime)resultRow.activeconfig_createdat,
+							ValidatedAt: (DateTime?)resultRow.activeconfig_validatedat
 				);
 			}
 
-			var response = new CreateGroupResponse(
-				(Guid)resultRow.Id, (string)resultRow.Name, (Guid?)resultRow.DefaultCourseId, activeConfig,
-				(Guid)resultRow.CreatedByGolferId, (DateTime)resultRow.CreatedAt, (DateTime)resultRow.UpdatedAt,
-				(bool)resultRow.IsDeleted, (DateTime?)resultRow.DeletedAt
+			var createdGroupResponse = new CreateGroupResponse(
+					Id: (Guid)resultRow.id,
+						Name: (string)resultRow.name,
+						DefaultCourseId: (Guid?)resultRow.defaultcourseid,
+						ActiveFinancialConfiguration: activeConfig,
+						CreatedByGolferId: (Guid)resultRow.createdbygolferid,
+						CreatedAt: (DateTime)resultRow.createdat,
+						UpdatedAt: (DateTime)resultRow.updatedat,
+						IsDeleted: (bool)resultRow.isdeleted,
+						DeletedAt: (DateTime?)resultRow.deletedat
 			);
 
 			await SendCreatedAtAsync<GetGroupByIdEndpoint>(
-				routeValues: new { response.Id },
-				responseBody: response,
+				routeValues: new { createdGroupResponse.Id },
+				responseBody: createdGroupResponse,
 				cancellation: ct);
 		}
 		catch (PostgresException ex)

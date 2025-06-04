@@ -1,4 +1,3 @@
-// src/stores/groups.ts
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useHttpClient } from '@/composables/useHttpClient';
@@ -9,18 +8,21 @@ import { useAuthenticationStore } from './authentication';
 import type {
   Group,
   UpdateGroupRequest,
-  GroupFinancialConfiguration,
+  // GroupFinancialConfiguration, // This is a response DTO, not needed for createGroup input directly
   GroupMember,
   AddGolfersToGroupRequest,
   AddGolfersToGroupResponse,
   RemoveGolfersFromGroupRequest,
   RemoveGolfersFromGroupResponse,
   SetGroupMemberScorerStatusRequest,
-  SetGroupMemberScorerStatusResponse
-} from '@/models/group'; // Import the new interfaces
+  SetGroupMemberScorerStatusResponse,
+  CreateGroupRequest, // Import the request DTO
+  CreateGroupFinancialConfigurationInputDTO // Import for type safety if used directly, though part of CreateGroupRequest
+} from '@/models'; // Updated import path
 
-// New DTOs for financial validation response (if not already in models/group.ts)
-// Moving these to models/group.ts would be ideal if they are API response types.
+// These validation DTOs are specific to an API endpoint response,
+// ensure they are defined in your models if they come from an API.
+// For now, keeping them here as per your provided store structure.
 export interface FormulaValidationError {
   message: string;
   playerCount: number | null;
@@ -38,14 +40,13 @@ export const useGroupsStore = defineStore('groups', () => {
   const currentGroup = ref<Group | null>(null); // For detail view
   const isLoadingGroupDetail = ref(false);
   const groupDetailError = ref<AppError | null>(null);
-  const isUpdatingGroup = ref(false);
+  const isUpdatingGroup = ref(false); // Used for create/update/delete operations
   const isManagingMembers = ref(false);
 
   const authenticationStore = useAuthenticationStore();
 
   /**
    * Fetches all groups the current user has access to.
-   * This includes groups where they are an admin or a scorer.
    */
   async function fetchAllGroups(): Promise<Result<Group[]>> {
     if (!authenticationStore.isAuthenticated || !authenticationStore.hasPermission(Permissions.ReadGroups)) {
@@ -64,7 +65,7 @@ export const useGroupsStore = defineStore('groups', () => {
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingGroups.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       groupsError.value = AppError.failure((apiError.response?.data as any)?.detail || apiError.message || 'Failed to fetch groups.');
       console.error('Error fetching groups:', groupsError.value);
       return Result.failureWithValue<Group[]>(groupsError.value);
@@ -91,13 +92,12 @@ export const useGroupsStore = defineStore('groups', () => {
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingGroupDetail.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       if (apiError.response?.status === 404) {
         groupDetailError.value = AppError.notFound('Group not found.');
       } else if (apiError.response?.status === 403) {
         groupDetailError.value = AppError.failure('You do not have permission to view this group.');
       } else {
-        // Access properties safely with optional chaining
         const detailMessage = (apiError.response?.data as any)?.detail;
         const errorMessage = apiError.message;
         groupDetailError.value = AppError.failure(detailMessage || errorMessage || 'Failed to fetch group details.');
@@ -109,50 +109,55 @@ export const useGroupsStore = defineStore('groups', () => {
 
   /**
    * Creates a new group.
-   * @param name The name of the new group.
-   * @param defaultCourseId Optional default course ID.
-   * @param optionalInitialFinancials Optional initial financial configuration.
+   * @param request The request DTO containing group creation data.
    */
-  async function createGroup(
-    name: string,
-    defaultCourseId: string | null,
-    optionalInitialFinancials: GroupFinancialConfiguration | null
-  ): Promise<Result<Group>> {
+  async function createGroup(request: CreateGroupRequest): Promise<Result<Group>> {
     if (!authenticationStore.isAuthenticated || !authenticationStore.hasPermission(Permissions.CreateGroups)) {
       return Result.failureWithValue<Group>(AppError.failure('You are not authorized to create groups.'));
     }
 
-    isUpdatingGroup.value = true; // Use this for any group-modifying operation
-    groupsError.value = null;
+    isUpdatingGroup.value = true;
+    groupsError.value = null; // Clear previous general groups errors
+    groupDetailError.value = null; // Clear previous detail errors as this is a new group
+
     try {
-      const payload = {
-        name,
-        defaultCourseId: defaultCourseId === '' ? null : defaultCourseId, // Ensure empty string becomes null
-        optionalInitialFinancials: optionalInitialFinancials || null,
+      // The payload directly matches the CreateGroupRequest DTO
+      const payload: CreateGroupRequest = {
+        name: request.name,
+        // Ensure defaultCourseId is null if empty string or undefined, otherwise use its value
+        defaultCourseId: request.defaultCourseId || null,
+        optionalInitialFinancials: request.optionalInitialFinancials || null,
       };
-      const { data } = await useHttpClient().post<Group>('/api/groups', payload);
+      const { data } = await useHttpClient().post<Group>('/api/groups', payload); // Assuming the response is a Group object
       isUpdatingGroup.value = false;
       // Optionally, refresh the list of groups after creation
+      // and potentially set currentGroup if navigating directly to detail
       await fetchAllGroups();
+      // currentGroup.value = data; // If you want to set it as current immediately
       return Result.successWithValue(data);
     } catch (error: any) {
       isUpdatingGroup.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to create group.';
-      if (apiError.response?.status === 409) {
+      let appErrorInstance: AppError;
+
+      if (apiError.response?.status === 409) { // Conflict
         errorMessage = (apiError.response?.data as any)?.title || 'A group with this name already exists.';
-        return Result.failureWithValue<Group>(AppError.conflict(errorMessage));
-      } else if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) {
-        // Handle validation errors from FastEndpoints
+        appErrorInstance = AppError.conflict(errorMessage);
+      } else if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) { // Validation
         const validationErrors = (apiError.response.data as any).errors;
         const firstErrorKey = Object.keys(validationErrors)[0];
         const firstErrorMessage = validationErrors[firstErrorKey][0];
         errorMessage = `Validation Error: ${firstErrorMessage}`;
-        return Result.failureWithValue<Group>(AppError.validation(errorMessage));
+        appErrorInstance = AppError.validation(errorMessage);
+      } else { // General failure
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupsError.value = AppError.failure(errorMessage);
-      console.error('Error creating group:', groupsError.value);
-      return Result.failureWithValue<Group>(groupsError.value);
+
+      // Set a general error for the creation process, not groupDetailError unless relevant
+      groupsError.value = appErrorInstance;
+      console.error('Error creating group:', appErrorInstance);
+      return Result.failureWithValue<Group>(appErrorInstance);
     }
   }
 
@@ -176,27 +181,31 @@ export const useGroupsStore = defineStore('groups', () => {
       return Result.successWithValue(data);
     } catch (error: any) {
       isUpdatingGroup.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to update group.';
+      let appErrorInstance: AppError;
+
       if (apiError.response?.status === 409) {
         errorMessage = (apiError.response?.data as any)?.title || 'A group with this name already exists.';
-        return Result.failureWithValue<Group>(AppError.conflict(errorMessage));
+        appErrorInstance = AppError.conflict(errorMessage);
       } else if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) {
         const validationErrors = (apiError.response.data as any).errors;
         const firstErrorKey = Object.keys(validationErrors)[0];
         const firstErrorMessage = validationErrors[firstErrorKey][0];
         errorMessage = `Validation Error: ${firstErrorMessage}`;
-        return Result.failureWithValue<Group>(AppError.validation(errorMessage));
+        appErrorInstance = AppError.validation(errorMessage);
       } else if (apiError.response?.status === 404) {
         errorMessage = 'Group not found.';
-        return Result.failureWithValue<Group>(AppError.notFound(errorMessage));
+        appErrorInstance = AppError.notFound(errorMessage);
       } else if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to update this group.';
-        return Result.failureWithValue<Group>(AppError.failure(errorMessage));
+        appErrorInstance = AppError.failure(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupDetailError.value = AppError.failure(errorMessage);
-      console.error('Error updating group:', groupDetailError.value);
-      return Result.failureWithValue<Group>(groupDetailError.value);
+      groupDetailError.value = appErrorInstance;
+      console.error('Error updating group:', appErrorInstance);
+      return Result.failureWithValue<Group>(appErrorInstance);
     }
   }
 
@@ -206,7 +215,7 @@ export const useGroupsStore = defineStore('groups', () => {
    */
   async function deleteGroup(groupId: string): Promise<DefaultResult> {
     if (!authenticationStore.isAuthenticated || !authenticationStore.hasPermission(Permissions.ManageAllGroups)) {
-      return Result.failure(AppError.failure('You are not authorized to delete groups.')); // Changed to Result.failure
+      return Result.failure(AppError.failure('You are not authorized to delete groups.'));
     }
 
     isUpdatingGroup.value = true;
@@ -215,21 +224,27 @@ export const useGroupsStore = defineStore('groups', () => {
       await useHttpClient().delete(`/api/groups/${groupId}`);
       isUpdatingGroup.value = false;
       await fetchAllGroups(); // Refresh the list
+      if (currentGroup.value?.id === groupId) { // Clear currentGroup if it was the one deleted
+        currentGroup.value = null;
+      }
       return Result.success();
     } catch (error: any) {
       isUpdatingGroup.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to delete group.';
+      let appErrorInstance: AppError;
       if (apiError.response?.status === 404) {
         errorMessage = 'Group not found.';
-        return Result.failure(AppError.notFound(errorMessage)); // Changed to Result.failure
+        appErrorInstance = AppError.notFound(errorMessage);
       } else if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to delete this group.';
-        return Result.failure(AppError.failure(errorMessage)); // Changed to Result.failure
+        appErrorInstance = AppError.failure(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupsError.value = AppError.failure(errorMessage);
-      console.error('Error deleting group:', groupsError.value);
-      return Result.failure(groupsError.value); // Changed to Result.failure
+      groupsError.value = appErrorInstance;
+      console.error('Error deleting group:', appErrorInstance);
+      return Result.failure(appErrorInstance);
     }
   }
 
@@ -243,25 +258,29 @@ export const useGroupsStore = defineStore('groups', () => {
     }
 
     isLoadingGroupDetail.value = true; // Re-use for member loading
-    groupDetailError.value = null;
+    // groupDetailError.value = null; // Don't clear general group detail error if only members fail
     try {
       const { data } = await useHttpClient().get<GroupMember[]>(`/api/groups/${groupId}/members`);
       isLoadingGroupDetail.value = false;
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingGroupDetail.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to fetch group members.';
+      let appErrorInstance: AppError;
       if (apiError.response?.status === 404) {
-        errorMessage = 'Group not found.';
-        return Result.failureWithValue<GroupMember[]>(AppError.notFound(errorMessage));
+        errorMessage = 'Group not found when fetching members.'; // More specific
+        appErrorInstance = AppError.notFound(errorMessage);
       } else if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to view members of this group.';
-        return Result.failureWithValue<GroupMember[]>(AppError.failure(errorMessage));
+        appErrorInstance = AppError.failure(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupDetailError.value = AppError.failure(errorMessage);
-      console.error('Error fetching group members:', groupDetailError.value);
-      return Result.failureWithValue<GroupMember[]>(groupDetailError.value);
+      // Set a more specific error or add to existing groupDetailError if appropriate
+      // For now, logging it but not overriding groupDetailError unless critical
+      console.error('Error fetching group members:', appErrorInstance);
+      return Result.failureWithValue<GroupMember[]>(appErrorInstance);
     }
   }
 
@@ -279,31 +298,33 @@ export const useGroupsStore = defineStore('groups', () => {
     }
 
     isManagingMembers.value = true;
-    groupDetailError.value = null;
+    // groupDetailError.value = null; // Don't clear general group error
     try {
       const payload: AddGolfersToGroupRequest = { golferIds };
       const { data } = await useHttpClient().post<AddGolfersToGroupResponse>(`/api/groups/${groupId}/members`, payload);
       isManagingMembers.value = false;
-      // Refresh group members after successful addition
-      await fetchGroupMembers(groupId);
+      // No need to call fetchGroupMembers here if the parent view will do it based on an emitted event
       return Result.successWithValue(data);
     } catch (error: any) {
       isManagingMembers.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to add golfers to group.';
+      let appErrorInstance: AppError;
       if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) {
         const validationErrors = (apiError.response.data as any).errors;
         const firstErrorKey = Object.keys(validationErrors)[0];
         const firstErrorMessage = validationErrors[firstErrorKey][0];
         errorMessage = `Validation Error: ${firstErrorMessage}`;
-        return Result.failureWithValue<AddGolfersToGroupResponse>(AppError.validation(errorMessage));
+        appErrorInstance = AppError.validation(errorMessage);
       } else if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to add members to this group.';
-        return Result.failureWithValue<AddGolfersToGroupResponse>(AppError.failure(errorMessage));
+        appErrorInstance = AppError.failure(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupDetailError.value = AppError.failure(errorMessage);
-      console.error('Error adding golfers to group:', groupDetailError.value);
-      return Result.failureWithValue<AddGolfersToGroupResponse>(groupDetailError.value);
+      // groupDetailError.value = appErrorInstance; // Or a specific member management error
+      console.error('Error adding golfers to group:', appErrorInstance);
+      return Result.failureWithValue<AddGolfersToGroupResponse>(appErrorInstance);
     }
   }
 
@@ -321,25 +342,28 @@ export const useGroupsStore = defineStore('groups', () => {
     }
 
     isManagingMembers.value = true;
-    groupDetailError.value = null;
+    // groupDetailError.value = null;
     try {
       const payload: RemoveGolfersFromGroupRequest = { golferIds };
+      // For DELETE with body, Axios expects it in the `data` property of the config object
       const { data } = await useHttpClient().delete<RemoveGolfersFromGroupResponse>(`/api/groups/${groupId}/members`, { data: payload });
       isManagingMembers.value = false;
-      // Refresh group members after successful removal
-      await fetchGroupMembers(groupId);
+      // No need to call fetchGroupMembers here if the parent view will do it
       return Result.successWithValue(data);
     } catch (error: any) {
       isManagingMembers.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to remove golfers from group.';
+      let appErrorInstance: AppError;
       if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to remove members from this group.';
-        return Result.failureWithValue<RemoveGolfersFromGroupResponse>(AppError.failure(errorMessage));
+        appErrorInstance = AppError.failure(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupDetailError.value = AppError.failure(errorMessage);
-      console.error('Error removing golfers from group:', groupDetailError.value);
-      return Result.failureWithValue<RemoveGolfersFromGroupResponse>(groupDetailError.value);
+      // groupDetailError.value = appErrorInstance;
+      console.error('Error removing golfers from group:', appErrorInstance);
+      return Result.failureWithValue<RemoveGolfersFromGroupResponse>(appErrorInstance);
     }
   }
 
@@ -354,29 +378,31 @@ export const useGroupsStore = defineStore('groups', () => {
       return Result.failureWithValue<SetGroupMemberScorerStatusResponse>(AppError.failure('You are not authorized to change scorer status.'));
     }
 
-    isManagingMembers.value = true;
-    groupDetailError.value = null;
+    isManagingMembers.value = true; // Re-use for this operation
+    // groupDetailError.value = null;
     try {
       const payload: SetGroupMemberScorerStatusRequest = { isScorer };
       const { data } = await useHttpClient().put<SetGroupMemberScorerStatusResponse>(`/api/groups/${groupId}/members/${memberGolferId}/scorer-status`, payload);
       isManagingMembers.value = false;
-      // Refresh group members to reflect the change
-      await fetchGroupMembers(groupId);
+      // No need to call fetchGroupMembers here if the parent view will do it
       return Result.successWithValue(data);
     } catch (error: any) {
       isManagingMembers.value = false;
-      const apiError = error as ResponseError; // Assert error type
+      const apiError = error as ResponseError;
       let errorMessage = apiError.message || 'Failed to update scorer status.';
+      let appErrorInstance: AppError;
       if (apiError.response?.status === 403) {
         errorMessage = 'You do not have permission to change scorer status for this group.';
-        return Result.failureWithValue<SetGroupMemberScorerStatusResponse>(AppError.failure(errorMessage));
+        appErrorInstance = AppError.failure(errorMessage);
       } else if (apiError.response?.status === 404) {
         errorMessage = 'Group or member not found.';
-        return Result.failureWithValue<SetGroupMemberScorerStatusResponse>(AppError.notFound(errorMessage));
+        appErrorInstance = AppError.notFound(errorMessage);
+      } else {
+        appErrorInstance = AppError.failure(errorMessage);
       }
-      groupDetailError.value = AppError.failure(errorMessage);
-      console.error('Error setting scorer status:', groupDetailError.value);
-      return Result.failureWithValue<SetGroupMemberScorerStatusResponse>(groupDetailError.value);
+      // groupDetailError.value = appErrorInstance;
+      console.error('Error setting scorer status:', appErrorInstance);
+      return Result.failureWithValue<SetGroupMemberScorerStatusResponse>(appErrorInstance);
     }
   }
 

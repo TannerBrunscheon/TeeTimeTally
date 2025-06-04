@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc; // For [FromRoute]
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 namespace TeeTimeTally.API.Endpoints.Groups.GroupManagement;
@@ -25,8 +26,6 @@ public record AddGolfersToGroupResponse(
 	List<Guid> GolfersAlreadyMembers
 );
 
-// Helper for fetching current user's golfer ID and admin status
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 // Helper for checking if user is a scorer for the group
 file record GroupScorerCheck(bool IsScorer);
 

@@ -5,6 +5,7 @@ using Dapper;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 using System.Security.Claims;
 using Microsoft.AspNetCore.Mvc;
+using TeeTimeTally.API.Models;
 
 namespace TeeTimeTally.API.Endpoints.Rounds;
 
@@ -66,8 +67,6 @@ public record GetRoundByIdResponse(
 	DateTime UpdatedAt
 );
 
-// Helper records for fetching data
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 file record RoundBaseInfo(
 	Guid RoundId, DateTime RoundDate, string Status, Guid GroupId, string GroupName,
 	Guid CourseId, string CourseName, int CourseCthHoleNumber, int NumPlayers, decimal TotalPot,

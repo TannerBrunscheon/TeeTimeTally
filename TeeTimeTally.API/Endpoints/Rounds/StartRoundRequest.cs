@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.API.Services;
 using TeeTimeTally.Shared.Auth;
 
@@ -62,8 +63,6 @@ public record StartRoundResponse(
 	DateTime CreatedAt
 );
 
-// Helper for fetching current user's golfer ID and admin status (file-scoped)
-file record CurrentUserGolferInfo(Guid Id, bool IsSystemAdmin);
 // Helper for fetching group's active financial config ID and golfer names
 file record GroupDataForRoundStart(Guid ActiveFinancialConfigurationId, string Name, Guid Id); // Added GroupId as 'Id'
 file record GolferDetail(Guid Id, string FullName); // For fetching golfer names
