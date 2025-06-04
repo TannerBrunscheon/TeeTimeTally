@@ -34,6 +34,8 @@ export interface Group {
   deletedAt: string | null;
 }
 
+
+// -- DTOs -- 
 // Input DTO for creating the financial configuration part of a new group
 export interface CreateGroupFinancialConfigurationInputDTO {
   buyInAmount: number;
