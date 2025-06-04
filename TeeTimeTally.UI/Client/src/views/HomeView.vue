@@ -1,3 +1,84 @@
+<script setup lang="ts">
+import { onMounted, computed, watchEffect } from 'vue'; // Import watchEffect
+import { RouterLink, useRouter } from 'vue-router';
+import { useAuthenticationStore } from '@/stores/authentication';
+import { useRoundsStore } from '@/stores/rounds';
+import { Permissions } from '@/models/auth/permissions';
+
+const authenticationStore = useAuthenticationStore();
+const roundsStore = useRoundsStore();
+const router = useRouter();
+
+// user computed property is not strictly needed here if only used in template via store directly
+// const user = computed(() => authenticationStore.user);
+
+// Use watchEffect to react to changes in authentication state
+watchEffect(() => {
+  // Fetch open rounds only when:
+  // 1. Authentication is not loading
+  // 2. User is authenticated
+  // 3. User has permission to read group rounds
+  if (!authenticationStore.isLoading &&
+      authenticationStore.isAuthenticated &&
+      authenticationStore.hasPermission(Permissions.ReadGroupRounds)) {
+    roundsStore.fetchOpenRounds();
+  } else if (!authenticationStore.isLoading && authenticationStore.isAuthenticated && !authenticationStore.hasPermission(Permissions.ReadGroupRounds)) {
+    // Optional: Log or handle the case where user is authenticated but lacks permission
+    console.warn("User is authenticated but lacks permission to read group rounds.");
+    // You might want to clear rounds or show a specific message if roundsStore.openRounds could have stale data
+    roundsStore.openRounds = []; // Clear rounds if permission is lost or not granted
+  } else if (!authenticationStore.isLoading && !authenticationStore.isAuthenticated) {
+    // Optional: Clear rounds if user logs out or session expires
+     roundsStore.openRounds = [];
+  }
+});
+
+// Helper function to format date strings for display
+function formatDate(dateString: string): string {
+  if (!dateString) return 'Date N/A';
+  try {
+    return new Date(dateString).toLocaleDateString(undefined, {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+  } catch (e) {
+    console.warn("Error formatting date:", dateString, e);
+    return dateString; // fallback to original string if formatting fails
+  }
+}
+
+// Helper function to format status strings for display
+function formatStatus(status: string): string {
+  const statusMap: { [key: string]: string } = {
+    'PendingSetup': 'Pending Setup',
+    'SetupComplete': 'Setup Complete',
+    'InProgress': 'In Progress',
+    'Completed': 'Completed (Awaiting Finalization)',
+  };
+  return statusMap[status] || status;
+}
+
+// Helper function to determine badge class based on status
+function statusBadgeClass(status: string): string {
+  const baseClass = 'badge rounded-pill';
+  switch (status) {
+    case 'PendingSetup': return `${baseClass} bg-secondary`;
+    case 'SetupComplete': return `${baseClass} bg-info text-dark`;
+    case 'InProgress': return `${baseClass} bg-warning text-dark`;
+    case 'Completed': return `${baseClass} bg-success`;
+    default: return `${baseClass} bg-light text-dark`;
+  }
+}
+
+// Function to navigate to a specific round's overview page
+function navigateToRound(roundId: string) {
+  if (roundId) {
+    router.push({ name: 'round-overview', params: { roundId } });
+  } else {
+    console.error("navigateToRound called with invalid roundId:", roundId);
+  }
+}
+</script>
+
 <template>
   <div class="home-view py-4">
     <div class="container">
@@ -83,79 +164,6 @@
   </div>
 </template>
 
-<script setup lang="ts">
-import { onMounted, computed } from 'vue';
-import { RouterLink, useRouter } from 'vue-router';
-import { useAuthenticationStore } from '@/stores/authentication';
-import { useRoundsStore } from '@/stores/rounds'; // Import the new rounds store
-import { Permissions } from '@/models/auth/permissions';
-
-const authenticationStore = useAuthenticationStore();
-const roundsStore = useRoundsStore();
-const router = useRouter();
-
-const user = computed(() => authenticationStore.user);
-
-onMounted(() => {
-  if (authenticationStore.isAuthenticated && authenticationStore.hasPermission(Permissions.ReadGroupRounds)) {
-    roundsStore.fetchOpenRounds();
-  }
-});
-
-function formatDate(dateString: string): string {
-  if (!dateString) return 'Date N/A';
-  try {
-    return new Date(dateString).toLocaleDateString(undefined, {
-      year: 'numeric', month: 'long', day: 'numeric'
-    });
-  } catch (e) {
-    return dateString; // fallback
-  }
-}
-
-function formatStatus(status: string): string {
-  // Add more human-friendly status names if needed
-  const statusMap: { [key: string]: string } = {
-    'PendingSetup': 'Pending Setup',
-    'SetupComplete': 'Setup Complete',
-    'InProgress': 'In Progress',
-    'Completed': 'Completed (Awaiting Finalization)',
-    // 'Finalized': 'Finalized' // Not typically an "open" round
-  };
-  return statusMap[status] || status;
-}
-
-function statusBadgeClass(status: string): string {
-  const baseClass = 'badge rounded-pill';
-  switch (status) {
-    case 'PendingSetup': return `${baseClass} bg-secondary`;
-    case 'SetupComplete': return `${baseClass} bg-info text-dark`;
-    case 'InProgress': return `${baseClass} bg-warning text-dark`;
-    case 'Completed': return `${baseClass} bg-success`;
-    default: return `${baseClass} bg-light text-dark`;
-  }
-}
-
-function navigateToRound(roundId: string) {
-  // Placeholder for navigation. You'll need a route like '/rounds/:id'
-  // For now, it can log or do nothing.
-  // Example: router.push({ name: 'round-details', params: { id: roundId } });
-  console.log('Navigate to round:', roundId);
-  // Replace with actual navigation once the round detail page/route exists
-  // e.g., router.push({ name: 'round-scoring', params: { roundId: roundId } });
-  // Or if you have a generic round detail view:
-  // router.push({ name: 'round-view', params: { id: roundId } });
-  // For now, let's assume you might want to go to a scoring page for open rounds.
-  // If your "StartRoundRequest" endpoint is what you use to setup, that's different.
-  // This page is for *viewing* open rounds.
-  // A common action for an "InProgress" or "Completed" round might be to go to its scoring page.
-  // A "SetupComplete" round might also go to a scoring/management page.
-  // A "PendingSetup" round might go to a setup page.
-  // Let's assume a generic 'round-overview' or similar route for now.
-  router.push({ name: 'round-overview', params: { roundId } }); // Adjust route name as needed
-}
-</script>
-
 <style scoped>
 .home-view .list-group-item-action:hover {
   background-color: #f8f9fa; /* Light hover effect */
@@ -163,6 +171,4 @@ function navigateToRound(roundId: string) {
 .badge {
   font-size: 0.85em;
 }
-/* Add Bootstrap Icons CSS if you use them, e.g., in index.html or main.ts */
-/* @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css"); */
 </style>

@@ -49,6 +49,15 @@ function logout() {
                 >Courses</RouterLink
               >
             </li>
+
+            <li class="nav-item" v-if="authenticationStore.isAuthenticated && authenticationStore.hasPermission(Permissions.ReadCourses)">
+              <RouterLink
+                class="nav-link"
+                :to="{ name: 'groups-index' }"
+                active-class="active"
+                >Groups</RouterLink
+              >
+            </li>
             </ul>
           <div v-if="authenticationStore.isLoading" class="d-flex align-items-center text-muted me-3">
             <div class="spinner-border spinner-border-sm" role="status">
@@ -122,4 +131,3 @@ main {
   /* color: #0d6efd; */ /* Or your primary color */
 }
 </style>
-
