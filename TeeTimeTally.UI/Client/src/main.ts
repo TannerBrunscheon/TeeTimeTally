@@ -13,7 +13,7 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 const app = createApp(App)
 
 app.use(createPinia())
-app.use(authentication) // This should call store.getUserInfo()
+app.use(authentication)
 app.use(router)
 
 app.mount('#app')
