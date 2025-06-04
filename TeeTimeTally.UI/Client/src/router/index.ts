@@ -18,7 +18,7 @@ const router = createRouter({
         {
           path: '',
           name: 'courses-index',
-          component: () => import('../views/Courses/IndexView.vue'),
+          component: () => import('../views/Courses/CoursesIndexView.vue'),
           meta: { requiresPermission: Permissions.ManageRoundCth }
         }
       ]
@@ -76,6 +76,30 @@ const router = createRouter({
           component: () => import('../views/Groups/GroupDetailView.vue'),
           props: true, // Allows groupId to be passed as a prop
           meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
+        }
+      ]
+    }, {
+      path: '/courses',
+      name: 'course-management',
+      children: [
+        {
+          path: '',
+          name: 'course-index',
+          component: () => import('../views/Courses/CoursesIndexView.vue'),
+          meta: { requiresAuth: true, requiredPermission: Permissions.ReadCourses }
+        },
+        {
+          path: 'new', // Or your preferred path
+          name: 'create-course',
+          component: () => import('../views/Courses/CreateCourseView.vue'), // Create this component
+          meta: { requiresAuth: true, requiresPermission: Permissions.CreateCourses }
+        },
+        {
+          path: ':roundId/overview', // Or similar
+          name: 'round-overview',
+          component: () => import('../views/Courses/CourseOverviewView.vue'), // Create this component
+          props: true, // To pass roundId as a prop
+          meta: { requiresAuth: true, requiresPermission: Permissions.ReadCourses }
         }
       ]
     },
