@@ -131,13 +131,9 @@ function formatDate(dateString: string | null | undefined) {
                 <td>{{ formatDate(course.createdAt) }}</td>
                 <td>{{ formatDate(course.updatedAt) }}</td>
                 <td class="text-center" v-if="canManageCourses">
-                  <RouterLink :to="`/courses/${course.id}/edit`" class="btn btn-sm btn-outline-primary me-2 rounded-pill" title="Edit Course">
-                    <i class="bi bi-pencil-square"></i>
-                  </RouterLink>
-                  <!-- Delete button would require a confirmation modal and a delete action in the store -->
-                  <!-- <button class="btn btn-sm btn-outline-danger rounded-pill" title="Delete Course">
+                  <button class="btn btn-sm btn-outline-danger rounded-pill" title="Delete Course">
                     <i class="bi bi-trash"></i>
-                  </button> -->
+                  </button>
                 </td>
               </tr>
             </tbody>
