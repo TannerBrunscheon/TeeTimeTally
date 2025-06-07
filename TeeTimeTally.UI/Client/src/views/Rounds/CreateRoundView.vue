@@ -35,6 +35,14 @@ const selectedGroup = computed((): Group | undefined => {
   return userGroups.value.find((g) => g.id === selectedGroupId.value)
 })
 
+const hasFinancialConfig = computed(() => {
+  return !!selectedGroup.value?.activeFinancialConfiguration;
+});
+
+const hasEnoughMembers = computed(() => {
+    return groupMembers.value.length >= 6;
+});
+
 const selectedGolfers = computed((): GroupMember[] => {
   return groupMembers.value.filter((member) => selectedGolferIds.value.includes(member.golferId))
 })
@@ -46,7 +54,7 @@ const unassignedGolfers = computed((): GroupMember[] => {
 
 const isFormValid = computed(() => {
   // Basic checks first
-  if (!selectedGroupId.value || !selectedCourseId.value) return false;
+  if (!selectedGroupId.value || !selectedCourseId.value || !hasFinancialConfig.value) return false;
   if (selectedGolfers.value.length < 6) return false;
 
   // Must have prepared teams
@@ -64,20 +72,14 @@ const isFormValid = computed(() => {
 /**
  * Gets the list of available golfers for a specific dropdown slot.
  * It includes all unassigned golfers plus the golfer currently in that slot.
- * This ensures that when a player is selected, they are removed from other
- * lists but remain selectable in their current dropdown.
- * @param currentGolferIdInSlot The ID of the golfer currently assigned to this team slot.
  */
 function availableOptionsFor(currentGolferIdInSlot: string): GroupMember[] {
   const options = [...unassignedGolfers.value];
 
-  // If a golfer is already selected in this slot, and they are NOT in the unassigned list
-  // (which they shouldn't be), add them to the options so they can be re-selected or appear as the current value.
   if (currentGolferIdInSlot && !options.some(g => g.golferId === currentGolferIdInSlot)) {
     const currentGolfer = selectedGolfers.value.find(g => g.golferId === currentGolferIdInSlot);
     if (currentGolfer) {
       options.push(currentGolfer);
-      // Sort for a consistent order in the dropdown
       options.sort((a, b) => a.fullName.localeCompare(b.fullName));
     }
   }
@@ -97,7 +99,6 @@ function resetRoundDetails() {
 
 /**
  * Creates empty team structures based on the number of selected players.
- * This is for manual assignment with dropdowns.
  */
 function prepareTeamSlots() {
   errorMessage.value = null
@@ -123,6 +124,31 @@ function prepareTeamSlots() {
   }
 
   teams.value = newTeams
+}
+
+/**
+ * Randomly assigns selected players to the prepared team slots.
+ */
+function randomizeTeams() {
+    if (selectedGolferIds.value.length === 0 || teams.value.length === 0) return;
+
+    // Create a shuffled copy of the selected golfer IDs
+    const shuffledGolfers = [...selectedGolferIds.value].sort(() => Math.random() - 0.5);
+
+    let golferIndex = 0;
+
+    // Create a new teams array to avoid reactivity issues with direct mutation
+    const newTeams = teams.value.map(team => {
+        const newGolferIds = team.golferIdsInTeam.map(() => {
+            if (golferIndex < shuffledGolfers.length) {
+                return shuffledGolfers[golferIndex++];
+            }
+            return ''; // Should not happen if logic is correct
+        });
+        return { ...team, golferIdsInTeam: newGolferIds };
+    });
+
+    teams.value = newTeams;
 }
 
 
@@ -210,7 +236,6 @@ function getGolferName(golferId: string): string {
   <div class="container mt-4">
     <h1 class="mb-4">Create a New Round</h1>
 
-    <!-- Step 1: Select Group -->
     <div class="card mb-4">
       <div class="card-header">
         <h3>Step 1: Select a Group</h3>
@@ -231,106 +256,123 @@ function getGolferName(golferId: string): string {
       </div>
     </div>
 
-    <!-- The rest of the form is conditional on a group being selected -->
     <div v-if="selectedGroupId">
       <div v-if="isLoading" class="text-center">
          <div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading group details...</span></div>
       </div>
-       <div v-else>
-        <!-- Step 2: Round Details -->
-        <div class="card mb-4">
-          <div class="card-header">
-            <h3>Step 2: Round Details</h3>
-          </div>
-          <div class="card-body">
-            <div class="row">
-              <div class="col-md-6 mb-3">
-                <label for="course-select" class="form-label">Golf Course</label>
-                <select id="course-select" class="form-select" v-model="selectedCourseId">
-                  <option disabled value="">Please select a course</option>
-                  <option v-for="course in availableCourses" :key="course.id" :value="course.id">
-                    {{ course.name }}
-                  </option>
-                </select>
-              </div>
-              <div class="col-md-6 mb-3">
-                <label for="round-date" class="form-label">Date</label>
-                <input type="date" id="round-date" class="form-control" v-model="roundDate" />
-              </div>
-            </div>
-          </div>
+        <div v-else>
+
+        <div v-if="!hasFinancialConfig" class="alert alert-danger">
+          <h4 class="alert-heading">Financial Configuration Required!</h4>
+          <p>This group does not have an active financial configuration. You must set one up before you can create a round.</p>
+          <hr>
+          <router-link :to="{ name: 'group-detail', params: { groupId: selectedGroupId } }" class="btn btn-danger">
+            Go to Group Settings <i class="bi bi-arrow-right"></i>
+          </router-link>
         </div>
 
-        <!-- Step 3: Select Players -->
-        <div class="card mb-4">
-          <div class="card-header d-flex justify-content-between align-items-center">
-             <h3>Step 3: Select Players ({{ selectedGolferIds.length }} selected)</h3>
-             <router-link :to="{ name: 'group-detail', params: { groupId: selectedGroupId } }" class="btn btn-outline-secondary btn-sm">
-                <i class="bi bi-pencil-square me-1"></i> Edit Group Members
-             </router-link>
-          </div>
-          <div class="card-body">
-            <p class="text-muted">A minimum of 6 players are required. (REQ-RS-008)</p>
-            <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
-              <div v-for="member in groupMembers" :key="member.golferId" class="col">
-                <div class="form-check form-check-inline">
-                  <input class="form-check-input" type="checkbox" :id="`golfer-${member.golferId}`" :value="member.golferId" v-model="selectedGolferIds" />
-                  <label class="form-check-label" :for="`golfer-${member.golferId}`">{{ member.fullName }}</label>
+        <div v-else>
+          <div class="card mb-4">
+            <div class="card-header">
+              <h3>Step 2: Round Details</h3>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label for="course-select" class="form-label">Golf Course</label>
+                  <select id="course-select" class="form-select" v-model="selectedCourseId">
+                    <option disabled value="">Please select a course</option>
+                    <option v-for="course in availableCourses" :key="course.id" :value="course.id">
+                      {{ course.name }}
+                    </option>
+                  </select>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label for="round-date" class="form-label">Date</label>
+                  <input type="date" id="round-date" class="form-control" v-model="roundDate" />
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <!-- Step 4: Form Teams -->
-        <div class="card mb-4">
-          <div class="card-header">
-            <h3>Step 4: Form Teams</h3>
+          <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h3>Step 3: Select Players ({{ selectedGolferIds.length }} selected)</h3>
+                <router-link :to="{ name: 'group-detail', params: { groupId: selectedGroupId } }" class="btn btn-outline-secondary btn-sm">
+                  <i class="bi bi-pencil-square me-1"></i> Edit Group Members
+                </router-link>
+            </div>
+            <div class="card-body">
+                <div v-if="!hasEnoughMembers" class="alert alert-warning">
+                    This group has fewer than 6 members. A round requires a minimum of 6 participating golfers. Please add more members to the group.
+                </div>
+                <div v-else>
+                    <p class="text-muted">A minimum of 6 players are required for a round.</p>
+                    <div class="row row-cols-2 row-cols-md-3 row-cols-lg-4 g-2">
+                        <div v-for="member in groupMembers" :key="member.golferId" class="col">
+                            <div class="form-check form-check-inline">
+                            <input class="form-check-input" type="checkbox" :id="`golfer-${member.golferId}`" :value="member.golferId" v-model="selectedGolferIds" />
+                            <label class="form-check-label" :for="`golfer-${member.golferId}`">{{ member.fullName }}</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
           </div>
-          <div class="card-body">
-            <button class="btn btn-secondary mb-3" @click="prepareTeamSlots" :disabled="selectedGolferIds.length < 6">
-              <i class="bi bi-people-fill me-2"></i>Prepare Team Slots
-            </button>
 
-            <div v-if="teams.length > 0" class="row g-3">
-              <div v-for="(team, teamIndex) in teams" :key="teamIndex" class="col-md-6 col-lg-4">
-                <div class="card h-100">
-                  <div class="card-header">
-                    <input type="text" class="form-control form-control-sm" v-model="team.teamNameOrNumber" />
+          <div class="card mb-4">
+            <div class="card-header">
+              <h3>Step 4: Form Teams</h3>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-3">
+                    <button class="btn btn-secondary" @click="prepareTeamSlots" :disabled="selectedGolferIds.length < 6">
+                        <i class="bi bi-people-fill me-2"></i>Prepare Team Slots
+                    </button>
+                    <button v-if="teams.length > 0" class="btn btn-outline-primary" @click="randomizeTeams">
+                        <i class="bi bi-shuffle me-2"></i>Randomize Teams
+                    </button>
+                </div>
+
+              <div v-if="teams.length > 0" class="row g-3">
+                <div v-for="(team, teamIndex) in teams" :key="teamIndex" class="col-md-6 col-lg-4">
+                  <div class="card h-100">
+                    <div class="card-header">
+                      <input type="text" class="form-control form-control-sm" v-model="team.teamNameOrNumber" />
+                    </div>
+                    <ul class="list-group list-group-flush">
+                      <li v-for="(_, playerIndex) in team.golferIdsInTeam" :key="playerIndex" class="list-group-item">
+                        <select class="form-select form-select-sm" v-model="team.golferIdsInTeam[playerIndex]">
+                          <option value="">-- Select Player --</option>
+                          <option v-for="golfer in availableOptionsFor(team.golferIdsInTeam[playerIndex])" :key="golfer.golferId" :value="golfer.golferId">
+                              {{ golfer.fullName }}
+                          </option>
+                        </select>
+                      </li>
+                    </ul>
                   </div>
-                  <ul class="list-group list-group-flush">
-                    <li v-for="(_, playerIndex) in team.golferIdsInTeam" :key="playerIndex" class="list-group-item">
-                      <select class="form-select form-select-sm" v-model="team.golferIdsInTeam[playerIndex]">
-                        <option value="">-- Select Player --</option>
-                        <option v-for="golfer in availableOptionsFor(team.golferIdsInTeam[playerIndex])" :key="golfer.golferId" :value="golfer.golferId">
-                            {{ golfer.fullName }}
-                        </option>
-                      </select>
-                    </li>
-                  </ul>
                 </div>
               </div>
-            </div>
-             <div v-else class="text-center text-muted p-3">
-              <p>Select players and click "Prepare Team Slots" to begin forming teams.</p>
+                <div v-else class="text-center text-muted p-3">
+                <p>Select players and click "Prepare Team Slots" to begin forming teams.</p>
+                </div>
             </div>
           </div>
-        </div>
 
-        <!-- Submission Area -->
-        <div class="d-grid gap-2">
-          <div v-if="errorMessage" class="alert alert-danger">
-              {{ errorMessage }}
+          <div class="d-grid gap-2">
+            <div v-if="errorMessage" class="alert alert-danger">
+                {{ errorMessage }}
+            </div>
+            <button class="btn btn-primary btn-lg" @click="handleCreateRound" :disabled="!isFormValid || roundsStore.isLoadingStartRound">
+              <span v-if="roundsStore.isLoadingStartRound" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
+              <i v-else class="bi bi-flag-fill me-2"></i>
+              Create Round
+            </button>
           </div>
-          <button class="btn btn-primary btn-lg" @click="handleCreateRound" :disabled="!isFormValid || roundsStore.isLoadingStartRound">
-            <span v-if="roundsStore.isLoadingStartRound" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
-            <i v-else class="bi bi-flag-fill me-2"></i>
-            Create Round
-          </button>
         </div>
       </div>
     </div>
-     <div v-else-if="!isLoading" class="text-center text-muted p-5 border rounded">
+      <div v-else-if="!isLoading" class="text-center text-muted p-5 border rounded">
       <h2>Select a Group</h2>
       <p>Please select a group from the dropdown above to begin creating a new round.</p>
     </div>
