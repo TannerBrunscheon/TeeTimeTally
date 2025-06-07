@@ -34,7 +34,7 @@ export function useStatusBadges() {
       'PendingSetup': 'Pending Setup',
       'SetupComplete': 'Setup Complete',
       'InProgress': 'In Progress',
-      'Completed': 'Completed (Awaiting Finalization)',
+      'Completed': 'Completed',
       'Finalized': 'Finalized',
     };
     return statusMap[status] || status;
