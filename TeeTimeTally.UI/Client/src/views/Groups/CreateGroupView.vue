@@ -5,7 +5,7 @@ import { useGroupsStore } from '@/stores/groups';
 import { useCoursesStore } from '@/stores/courses';
 import type { CourseSummary } from '@/models'; // Assuming CourseSummary for course list
 import type { CreateGroupRequest, CreateGroupFinancialConfigurationInputDTO } from '@/models'; // Adjust DTO import path
-import FinancialEditorCard from './FinancialEditorCard.vue'; // Import the reusable editor card
+import FinancialEditorCard from './GroupDetail/FinancialEditorCard.vue'; // Import the reusable editor card
 
 const router = useRouter();
 const groupsStore = useGroupsStore();

@@ -7,9 +7,9 @@ import type { Group, GroupMember } from '@/models';
 
 // Import the sub-components
 import GroupInfoCard from './GroupDetail/GroupInfoCard.vue';
-// import FinancialConfigCard from './GroupDetail/FinancialConfigCard.vue'; // Old import removed
-import FinancialEditorCard from './FinancialEditorCard.vue'; // New import
+import FinancialEditorCard from './GroupDetail/FinancialEditorCard.vue'; // New import
 import GroupMembersCard from './GroupDetail/GroupMembersCard.vue';
+import GroupRoundHistoryCard from './GroupDetail/GroupRoundHistoryCard.vue';
 
 const groupsStore = useGroupsStore();
 const courseStore = useCoursesStore();
@@ -121,6 +121,13 @@ async function handleMembersUpdated() {
 function createNewGroup() {
   router.push({ name: 'groups-index' });
 }
+
+const props = defineProps({
+  groupId: {
+    type: String,
+    required: true,
+  },
+});
 </script>
 
 <template>
@@ -169,6 +176,8 @@ function createNewGroup() {
         :group-members="groupMembers"
         @members-updated="handleMembersUpdated"
       />
+
+      <GroupRoundHistoryCard :group-id="props.groupId" />
     </div>
 
     <div v-else class="alert alert-warning" role="alert">

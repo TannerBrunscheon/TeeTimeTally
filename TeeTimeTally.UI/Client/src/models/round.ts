@@ -174,7 +174,6 @@ export interface OverallWinnerPayoutResponse {
   amount: number;
 }
 
-// CompleteRoundResponse now includes the detailed player payouts
 export interface CompleteRoundResponse {
   roundId: string;
   finalStatus: string;
@@ -187,4 +186,17 @@ export interface CompleteRoundResponse {
   totalOverallWinnerPayout: number;
   playerPayouts: PlayerPayoutSummaryResponse[];
   payoutVerificationMessage: string;
+}
+
+export interface RoundHistoryItem {
+  roundId: string;
+  roundDate: string;
+  courseName: string;
+  numPlayers: number;
+  totalPot: number;
+  status: string;
+}
+
+export interface GetGroupRoundHistoryResponse {
+  rounds: RoundHistoryItem[];
 }

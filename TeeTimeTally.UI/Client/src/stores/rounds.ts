@@ -1,7 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
 import { useHttpClient } from '@/composables/useHttpClient';
-import { AppError, ErrorType, type ResponseError } from '@/primitives/error';
+import { AppError, type ResponseError } from '@/primitives/error';
 import { Result, type DefaultResult } from '@/primitives/result';
 import { useAuthenticationStore } from './authentication';
 import { Permissions } from '@/models/auth/permissions';
@@ -13,16 +13,21 @@ import type {
   SubmitScoresRequest,
   SubmitScoresResponse,
   CompleteRoundRequest,
-  CompleteRoundResponse
+  CompleteRoundResponse,
+  RoundHistoryItem, // Import the new interface
+  GetGroupRoundHistoryResponse // Import the new interface
 } from '@/models/round';
 
 export const useRoundsStore = defineStore('rounds', () => {
   // --- STATE ---
   const openRounds = ref<OpenRound[]>([]);
   const currentRound = ref<GetRoundByIdResponse | null>(null);
+  const groupRoundHistory = ref<RoundHistoryItem[]>([]); // New state for history
   const isLoadingOpenRounds = ref(false);
   const isLoadingCurrentRound = ref(false);
+  const isLoadingGroupRoundHistory = ref(false); // New loading state
   const openRoundsError = ref<AppError | null>(null);
+  const groupRoundHistoryError = ref<AppError | null>(null); // New error state
 
   const isLoadingStartRound = ref(false);
   const isLoadingSubmitScores = ref(false);
@@ -61,6 +66,32 @@ export const useRoundsStore = defineStore('rounds', () => {
       return Result.failure(openRoundsError.value);
     }
   }
+
+  async function fetchGroupRoundHistory(groupId: string): Promise<Result<RoundHistoryItem[]>> {
+    if (!authenticationStore.isAuthenticated || !authenticationStore.hasPermission(Permissions.ReadGroupRounds)) {
+      const unauthorizedError = AppError.failure('You are not authorized to view group history.');
+      groupRoundHistoryError.value = unauthorizedError;
+      return Result.failureWithValue(unauthorizedError);
+    }
+
+    isLoadingGroupRoundHistory.value = true;
+    groupRoundHistoryError.value = null;
+    try {
+      const { data } = await httpClient.get<GetGroupRoundHistoryResponse>(`/api/groups/${groupId}/rounds/history`);
+      groupRoundHistory.value = data.rounds;
+      isLoadingGroupRoundHistory.value = false;
+      return Result.successWithValue(data.rounds);
+    } catch (error: any) {
+      isLoadingGroupRoundHistory.value = false;
+      const apiError = error as ResponseError;
+      const appError = AppError.failure((apiError.response?.data as any)?.detail || 'Failed to fetch round history.');
+      groupRoundHistoryError.value = appError;
+      console.error('Error fetching round history:', appError);
+      return Result.failureWithValue(appError);
+    }
+  }
+
+
 
   async function startRound(
     groupId: string,
@@ -166,14 +197,18 @@ export const useRoundsStore = defineStore('rounds', () => {
     // State
     openRounds,
     currentRound,
+    groupRoundHistory,
     isLoadingOpenRounds,
     isLoadingCurrentRound,
+    isLoadingGroupRoundHistory,
     openRoundsError,
+    groupRoundHistoryError,
     isLoadingStartRound,
     isLoadingSubmitScores,
     isLoadingCompleteRound,
     // Actions
     fetchOpenRounds,
+    fetchGroupRoundHistory,
     startRound,
     fetchRoundById,
     submitScores,

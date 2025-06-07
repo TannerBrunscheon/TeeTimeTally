@@ -3,8 +3,10 @@ using FastEndpoints;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth;
 
 namespace TeeTimeTally.API.Features.Rounds.Endpoints;
@@ -39,51 +41,44 @@ public class GetGroupRoundHistoryRequestValidator : Validator<GetGroupRoundHisto
 }
 
 
-[FastEndpoints.HttpGet("/api/groups/{GroupId:guid}/rounds/history"), Authorize(Policy = Auth0Scopes.ReadGroupRounds)]
-public class GetGroupRoundHistoryEndpoint : Endpoint<GetGroupRoundHistoryRequest, GetGroupRoundHistoryResponse>
+[FastEndpoints.HttpGet("/groups/{GroupId:guid}/rounds/history"), Authorize(Policy = Auth0Scopes.ReadGroupRounds)]
+public class GetGroupRoundHistoryEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupRoundHistoryEndpoint> logger) : Endpoint<GetGroupRoundHistoryRequest, GetGroupRoundHistoryResponse>
 {
-	private readonly NpgsqlDataSource _dataSource;
-	private readonly ILogger<GetGroupRoundHistoryEndpoint> _logger;
-
-	public GetGroupRoundHistoryEndpoint(NpgsqlDataSource dataSource, ILogger<GetGroupRoundHistoryEndpoint> logger)
-	{
-		_dataSource = dataSource;
-		_logger = logger;
-	}
-
 	public override async Task HandleAsync(GetGroupRoundHistoryRequest req, CancellationToken ct)
 	{
+		await using var connection = await dataSource.OpenConnectionAsync(ct);
+
 		var auth0UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+		// Note: currentUserIdString null/empty check might be less critical if [Authorize] guarantees it,
+		// but good for defense. The validator doesn't usually handle auth context.
 		if (string.IsNullOrEmpty(auth0UserId))
 		{
-			await SendUnauthorizedAsync(ct);
+			await SendResultAsync(TypedResults.Problem(title: "Unauthorized", detail: "User identifier not found.", statusCode: StatusCodes.Status401Unauthorized));
 			return;
 		}
 
-		await using var connection = await _dataSource.OpenConnectionAsync(ct);
-
-		var golferId = await connection.QuerySingleOrDefaultAsync<Guid?>(
-			"SELECT id FROM golfers WHERE auth0_user_id = @Auth0UserId AND is_deleted = FALSE;",
+		var currentUserInfo = await connection.QuerySingleOrDefaultAsync<CurrentUserGolferInfo>(
+			"SELECT id AS Id, is_system_admin AS IsSystemAdmin FROM golfers WHERE auth0_user_id = @Auth0UserId AND is_deleted = FALSE;",
 			new { Auth0UserId = auth0UserId });
 
-		if (golferId == null)
+		if (currentUserInfo == null)
 		{
-			await SendForbiddenAsync(ct);
+			await SendResultAsync(TypedResults.Problem(title: "Forbidden", detail: "User profile not found or inactive.", statusCode: StatusCodes.Status403Forbidden));
 			return;
 		}
 
-		// Authorization: Ensure the user is a member of the group they are requesting history for.
-		var isGroupMember = await connection.ExecuteScalarAsync<bool>(
-			"SELECT EXISTS (SELECT 1 FROM group_members WHERE group_id = @GroupId AND golfer_id = @GolferId AND is_deleted = FALSE)",
-			new { req.GroupId, GolferId = golferId });
-
-		if (!isGroupMember)
+		if (!currentUserInfo.IsSystemAdmin)
 		{
-			_logger.LogWarning("User {UserId} (GolferId: {GolferId}) attempted to access round history for non-member group {GroupId}.",
-				auth0UserId, golferId, req.GroupId);
-			await SendForbiddenAsync(ct);
-			return;
+			var isScorer = await connection.QuerySingleOrDefaultAsync<bool>(
+				"SELECT TRUE FROM group_members WHERE group_id = @GroupId AND golfer_id = @GolferId;",
+				new { req.GroupId, GolferId = currentUserInfo.Id });
+			if (!isScorer)
+			{
+				await SendResultAsync(TypedResults.Problem(title: "Forbidden", detail: "User is not authorized to view rounds for this group.", statusCode: StatusCodes.Status403Forbidden));
+				return;
+			}
 		}
+		logger.LogInformation("User {UserId} (GolferId: {GolferId}) authorized for viewing rounds in group {GroupId}.", auth0UserId, currentUserInfo.Id, req.GroupId);
 
 		const string sql = @"
             SELECT
