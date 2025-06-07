@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
-import { useCourseStore } from '@/stores/courses';
+import { useCoursesStore } from '@/stores/courses';
 import { useAuthenticationStore } from '@/stores/authentication';
 import type { Course, SearchCoursesRequest } from '@/models/course';
 import { Permissions } from '@/models/auth/permissions';
 import { RouterLink } from 'vue-router';
 
-const courseStore = useCourseStore();
+const courseStore = useCoursesStore();
 const authStore = useAuthenticationStore();
 
 const courses = ref<Course[]>([]);

@@ -1,20 +1,13 @@
-﻿using FastEndpoints;
+﻿using Dapper;
+using FastEndpoints;
+using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc; // For FromRoute
+using Microsoft.AspNetCore.Mvc;
 using Npgsql;
 using System.Security.Claims;
-using TeeTimeTally.Shared.Auth;
-using Dapper;
-using Microsoft.AspNetCore.Http; // For StatusCodes and TypedResults
-using Microsoft.Extensions.Logging; // For ILogger
-using System;
-using System.Threading;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using System.Linq;
-using System.Globalization;
-using FluentValidation;
+using System.Text.Json;
 using TeeTimeTally.API.Models;
+using TeeTimeTally.Shared.Auth;
 
 namespace TeeTimeTally.API.Features.Rounds.Endpoints.CompleteRound;
 
@@ -24,42 +17,54 @@ public class CompleteRoundRequest
 {
 	[FromRoute]
 	public Guid RoundId { get; set; }
-
-	// TeamScores list is removed. Endpoint assumes scores are already in DB and round is "Completed".
 	public Guid CthWinnerGolferId { get; set; }
-	public Guid? OverallWinnerTeamIdOverride { get; set; } // Made nullable for optional override
+	public Guid? OverallWinnerTeamIdOverride { get; set; }
 }
 
 // --- Response DTOs ---
-public record SkinPayoutDetailResponse(Guid TeamId, string TeamName, int HoleNumber, decimal AmountWon, bool IsCarryOverWin);
+public record SkinPayoutDetailResponse(Guid TeamId, string TeamName, short HoleNumber, decimal AmountWon, bool IsCarryOverWin);
 public record CthPayoutDetailResponse(Guid WinningGolferId, string WinningGolferName, Guid WinningTeamId, string WinningTeamName, decimal Amount);
 public record OverallWinnerPayoutResponse(Guid TeamId, string TeamName, decimal Amount);
-
-// DTO for the 409 Conflict response when there's a tie for overall winner
 public record TiedOverallWinnerInfo(Guid TeamId, string TeamNameOrNumber);
+
+public record PlayerPayoutSummaryResponse(
+	Guid GolferId,
+	string FullName,
+	Guid TeamId,
+	string TeamName,
+	decimal TotalWinnings,
+	PlayerPayoutBreakdown Breakdown
+);
+
+public record PlayerPayoutBreakdown(
+	decimal SkinsWinnings,
+	decimal CthWinnings,
+	decimal OverallWinnings
+);
 
 
 public record CompleteRoundResponse(
 	Guid RoundId,
-	string FinalStatus, // Will be "Finalized"
+	string FinalStatus,
 	decimal TotalPot,
 	List<SkinPayoutDetailResponse> SkinPayouts,
 	decimal TotalSkinsPaidOut,
 	decimal FinalSkinRolloverAmount,
 	CthPayoutDetailResponse? CthPayout,
-	List<OverallWinnerPayoutResponse> OverallWinnerPayouts, // Will contain one winner if finalized
+	List<OverallWinnerPayoutResponse> OverallWinnerPayouts,
 	decimal TotalOverallWinnerPayout,
+	List<PlayerPayoutSummaryResponse> PlayerPayouts,
 	string PayoutVerificationMessage
 );
 
 // --- Helper DTOs/Records for internal logic ---
 file record RoundDetailsForCompletion(
 	Guid Id, Guid GroupId, Guid CourseId, Guid FinancialConfigurationId, string Status,
-	int NumPlayers, decimal TotalPot, decimal CalculatedSkinValuePerHole, decimal CalculatedCthPayout
+	short NumPlayers, decimal TotalPot, decimal CalculatedSkinValuePerHole, decimal CalculatedCthPayout
 );
 file record TeamInfoForRound(Guid Id, string TeamNameOrNumber);
 file record ParticipantInfoForRound(Guid GolferId, string FullName, Guid TeamId);
-file record StoredScoreInfo(Guid TeamId, int HoleNumber, int Score);
+file record StoredScoreInfo(Guid TeamId, short HoleNumber, short Score);
 file record TeamTotalScore(Guid TeamId, string TeamNameOrNumber, int TotalScore);
 
 
@@ -82,8 +87,6 @@ public class CompleteRoundRequestValidator : Validator<CompleteRoundRequest>
 			.MustAsync(async (req, cthWinnerId, context, cancellationToken) =>
 				await IsGolferParticipantInRoundAsync(req.RoundId, cthWinnerId, cancellationToken))
 			.WithMessage("CTH winner is not a valid participant in this round.");
-
-		// OverallWinnerTeamIdOverride is optional, its validity (if provided) will be checked in the handler.
 	}
 
 	private async Task<bool> RoundExistsAndIsReadyForFinalizationAsync(Guid roundId, CancellationToken token)
@@ -147,7 +150,7 @@ public class CompleteRoundEndpoint(NpgsqlDataSource dataSource, ILogger<Complete
 			await SendNotFoundAsync(ct);
 			return;
 		}
-		// Validator ensures status is 'Completed'. This is a defense-in-depth check.
+
 		if (roundDetails.Status != "Completed")
 		{
 			logger.LogWarning("Attempt to finalize round {RoundId} which is not in 'Completed' status. Current status: {Status}", req.RoundId, roundDetails.Status);
@@ -166,37 +169,22 @@ public class CompleteRoundEndpoint(NpgsqlDataSource dataSource, ILogger<Complete
 				return;
 			}
 		}
-		logger.LogInformation("User {Auth0UserId} (GolferId: {GolferId}) authorized to finalize round {RoundId}.", auth0UserId, currentUserInfo.Id, req.RoundId);
 
 		var teamsInRoundData = (await connection.QueryAsync<TeamInfoForRound>(
 			"SELECT id AS Id, team_name_or_number AS TeamNameOrNumber FROM round_teams WHERE round_id = @RoundId AND is_deleted = FALSE;",
 			new { req.RoundId })).ToList();
 		var teamsInRound = teamsInRoundData.ToDictionary(t => t.Id);
 
-
-		var participantsInRound = (await connection.QueryAsync<ParticipantInfoForRound>(
+		var participants = (await connection.QueryAsync<ParticipantInfoForRound>(
 			"SELECT rp.golfer_id AS GolferId, g.full_name AS FullName, rp.round_team_id AS TeamId FROM round_participants rp JOIN golfers g ON rp.golfer_id = g.id WHERE rp.round_id = @RoundId AND g.is_deleted = FALSE;",
-			new { req.RoundId })).ToDictionary(p => p.GolferId);
+			new { req.RoundId })).ToList();
+		var participantsByTeam = participants.GroupBy(p => p.TeamId).ToDictionary(g => g.Key, g => g.ToList());
+		var participantsById = participants.ToDictionary(p => p.GolferId);
 
 		var allScoresFromDb = (await connection.QueryAsync<StoredScoreInfo>(
 			"SELECT round_team_id AS TeamId, hole_number AS HoleNumber, score AS Score FROM round_scores WHERE round_id = @RoundId;",
 			new { req.RoundId })).ToList();
 
-		// Scorecard completeness should be guaranteed by the "Completed" status.
-		// Defensive check (optional, but good for data integrity):
-		var scoresGroupedByTeamForValidation = allScoresFromDb.GroupBy(s => s.TeamId).ToDictionary(g => g.Key, g => g.Select(s => s.HoleNumber).ToHashSet());
-		foreach (var teamEntry in teamsInRound)
-		{
-			if (!scoresGroupedByTeamForValidation.TryGetValue(teamEntry.Key, out var holesScored) || holesScored.Count != 18)
-			{
-				logger.LogError("Critical: Round {RoundId} is 'Completed' but team {TeamId} has incomplete scores ({ScoreCount}/18). Data integrity issue.", req.RoundId, teamEntry.Key, holesScored?.Count ?? 0);
-				await SendResultAsync(TypedResults.Problem(title: "Internal Server Error", detail: "Data integrity issue: Round marked as completed but scorecard is incomplete.", statusCode: StatusCodes.Status500InternalServerError));
-				return;
-			}
-		}
-		logger.LogInformation("All teams have complete scorecards for round {RoundId}. Proceeding to finalization.", req.RoundId);
-
-		// --- Calculate Overall Winner ---
 		var teamTotalScores = allScoresFromDb
 			.GroupBy(s => s.TeamId)
 			.Select(g => new TeamTotalScore(
@@ -204,7 +192,7 @@ public class CompleteRoundEndpoint(NpgsqlDataSource dataSource, ILogger<Complete
 				TeamNameOrNumber: teamsInRound.TryGetValue(g.Key, out var teamInfo) ? teamInfo.TeamNameOrNumber : "Unknown Team",
 				TotalScore: g.Sum(s => s.Score)
 			))
-			.OrderBy(ts => ts.TotalScore) // Lowest score wins
+			.OrderBy(ts => ts.TotalScore)
 			.ToList();
 
 		List<Guid> actualOverallWinnerTeamIds = [];
@@ -212,194 +200,149 @@ public class CompleteRoundEndpoint(NpgsqlDataSource dataSource, ILogger<Complete
 		if (req.OverallWinnerTeamIdOverride.HasValue)
 		{
 			var overrideTeamId = req.OverallWinnerTeamIdOverride.Value;
-			if (!teamsInRound.TryGetValue(overrideTeamId, out TeamInfoForRound? value))
+			if (!teamsInRound.ContainsKey(overrideTeamId))
 			{
 				await SendResultAsync(TypedResults.Problem(title: "Bad Request", detail: $"Provided OverallWinnerTeamIdOverride '{overrideTeamId}' is not a valid team in this round.", statusCode: StatusCodes.Status400BadRequest));
 				return;
 			}
-			// Validate that the override is one of the teams that *could* have won (i.e., had the lowest score)
 			var lowestScore = teamTotalScores.FirstOrDefault()?.TotalScore;
 			if (lowestScore == null || !teamTotalScores.Any(t => t.TeamId == overrideTeamId && t.TotalScore == lowestScore))
 			{
-				await SendResultAsync(TypedResults.Problem(title: "Bad Request", detail: $"Override winner '{value.TeamNameOrNumber}' did not have the lowest score.", statusCode: StatusCodes.Status400BadRequest));
+				await SendResultAsync(TypedResults.Problem(title: "Bad Request", detail: $"Override winner did not have the lowest score.", statusCode: StatusCodes.Status400BadRequest));
 				return;
 			}
 			actualOverallWinnerTeamIds.Add(overrideTeamId);
-			logger.LogInformation("Overall winner for round {RoundId} set by override to TeamId: {OverrideTeamId}", req.RoundId, overrideTeamId);
 		}
 		else
 		{
-			if (teamTotalScores.Count == 0)
-			{
-				// Should not happen if there are teams and scores
-				await SendResultAsync(TypedResults.Problem(title: "Internal Server Error", detail: "Cannot determine overall winner: no team scores found.", statusCode: StatusCodes.Status500InternalServerError));
-				return;
-			}
 			var lowestScore = teamTotalScores.First().TotalScore;
 			var tiedTeams = teamTotalScores.Where(ts => ts.TotalScore == lowestScore).ToList();
 
 			if (tiedTeams.Count > 1)
 			{
-				logger.LogWarning("Tie for overall winner in round {RoundId} between teams: {TiedTeamIds}. Override required.", req.RoundId, string.Join(", ", tiedTeams.Select(t => t.TeamId)));
 				var tiedTeamInfos = tiedTeams.Select(t => new TiedOverallWinnerInfo(t.TeamId, t.TeamNameOrNumber)).ToList();
-				var problemDetails = new ValidationProblemDetails(new Dictionary<string, string[]>()) // No specific field, general problem
+				var problemDetails = new ValidationProblemDetails(new Dictionary<string, string[]>())
 				{
 					Title = "Overall Winner Tie",
 					Detail = "Multiple teams are tied for the lowest score. An 'OverallWinnerTeamIdOverride' must be provided to finalize the round.",
 					Status = StatusCodes.Status409Conflict,
-					Extensions = { { "TiedTeams", tiedTeamInfos } }
+					Extensions = { { "tiedTeams", tiedTeamInfos } }
 				};
 				await SendResultAsync(TypedResults.Problem(problemDetails));
 				return;
 			}
 			actualOverallWinnerTeamIds.Add(tiedTeams.First().TeamId);
-			logger.LogInformation("Overall winner for round {RoundId} determined: TeamId: {WinnerTeamId}", req.RoundId, actualOverallWinnerTeamIds.First());
 		}
 
-
-		// --- Start Main Finalization Transaction ---
 		await using var finalizationTransaction = await connection.BeginTransactionAsync(ct);
 		try
 		{
-			var scoresByHoleThenTeamForCalc = allScoresFromDb
-				.GroupBy(s => s.HoleNumber)
-				.OrderBy(g => g.Key)
-				.ToDictionary(g => g.Key, g => g.ToDictionary(s => s.TeamId, s => s.Score));
-
-			// 2. Skins Calculation
+			var scoresByHoleThenTeamForCalc = allScoresFromDb.GroupBy(s => s.HoleNumber).OrderBy(g => g.Key).ToDictionary(g => g.Key, g => g.ToDictionary(s => s.TeamId, s => s.Score));
 			var skinPayoutsResponse = new List<SkinPayoutDetailResponse>();
+			var perPlayerWinnings = participants.ToDictionary(p => p.GolferId, p => new PlayerPayoutBreakdown(0, 0, 0));
 			decimal totalSkinsPaidOut = 0;
 			decimal currentCarryOverSkinValue = 0;
-
-			for (int holeNumber = 1; holeNumber <= 18; holeNumber++)
+			for (short holeNumber = 1; holeNumber <= 18; holeNumber++)
 			{
-				decimal baseSkinValueForThisHole = roundDetails.CalculatedSkinValuePerHole;
-				decimal skinValueAtStake = baseSkinValueForThisHole + currentCarryOverSkinValue;
+				decimal skinValueAtStake = roundDetails.CalculatedSkinValuePerHole + currentCarryOverSkinValue;
 				currentCarryOverSkinValue = 0;
-
-				if (!scoresByHoleThenTeamForCalc.TryGetValue(holeNumber, out var scoresForThisHole))
-				{
-					throw new InvalidOperationException($"Scores missing for hole {holeNumber} in a 'Completed' round.");
-				}
-
+				if (!scoresByHoleThenTeamForCalc.TryGetValue(holeNumber, out var scoresForThisHole)) continue;
 				var minScoreOnHole = scoresForThisHole.Values.Min();
 				var winningTeamIdsForHole = scoresForThisHole.Where(kvp => kvp.Value == minScoreOnHole).Select(kvp => kvp.Key).ToList();
-
 				if (winningTeamIdsForHole.Count == 1)
 				{
 					var winningTeamId = winningTeamIdsForHole.First();
-					await connection.ExecuteAsync(
-						"UPDATE round_scores SET is_skin_winner = TRUE, skin_value_won = @Amount WHERE round_id = @RoundId AND round_team_id = @TeamId AND hole_number = @HoleNumber;",
-						new { Amount = skinValueAtStake, req.RoundId, TeamId = winningTeamId, HoleNumber = holeNumber }, finalizationTransaction);
-
-					skinPayoutsResponse.Add(new SkinPayoutDetailResponse(winningTeamId, teamsInRound[winningTeamId].TeamNameOrNumber, holeNumber, skinValueAtStake, skinValueAtStake > baseSkinValueForThisHole));
+					await connection.ExecuteAsync("UPDATE round_scores SET is_skin_winner = TRUE, skin_value_won = @Amount WHERE round_id = @RoundId AND round_team_id = @TeamId AND hole_number = @HoleNumber;", new { Amount = skinValueAtStake, req.RoundId, TeamId = winningTeamId, HoleNumber = holeNumber }, finalizationTransaction);
+					skinPayoutsResponse.Add(new SkinPayoutDetailResponse(winningTeamId, teamsInRound[winningTeamId].TeamNameOrNumber, holeNumber, skinValueAtStake, skinValueAtStake > roundDetails.CalculatedSkinValuePerHole));
 					totalSkinsPaidOut += skinValueAtStake;
+					var members = participantsByTeam[winningTeamId];
+					foreach (var member in members)
+					{
+						perPlayerWinnings[member.GolferId] = perPlayerWinnings[member.GolferId] with { SkinsWinnings = perPlayerWinnings[member.GolferId].SkinsWinnings + (skinValueAtStake / members.Count) };
+					}
 				}
-				else
-				{
-					currentCarryOverSkinValue = skinValueAtStake;
-				}
+				else { currentCarryOverSkinValue = skinValueAtStake; }
 			}
 			decimal finalSkinRolloverAmount = currentCarryOverSkinValue;
 
-			// 3. CTH Payout
 			CthPayoutDetailResponse? cthPayoutResponse = null;
 			decimal actualCthPaidOut = 0;
-			if (participantsInRound.TryGetValue(req.CthWinnerGolferId, out var cthWinnerProfile) && roundDetails.CalculatedCthPayout > 0)
+			if (participantsById.TryGetValue(req.CthWinnerGolferId, out var cthWinnerProfile) && roundDetails.CalculatedCthPayout > 0)
 			{
 				if (teamsInRound.TryGetValue(cthWinnerProfile.TeamId, out var cthWinningTeamInfo))
 				{
-					cthPayoutResponse = new CthPayoutDetailResponse(
-						req.CthWinnerGolferId, cthWinnerProfile.FullName, cthWinningTeamInfo.Id, cthWinningTeamInfo.TeamNameOrNumber, roundDetails.CalculatedCthPayout);
+					cthPayoutResponse = new CthPayoutDetailResponse(req.CthWinnerGolferId, cthWinnerProfile.FullName, cthWinningTeamInfo.Id, cthWinningTeamInfo.TeamNameOrNumber, roundDetails.CalculatedCthPayout);
 					actualCthPaidOut = roundDetails.CalculatedCthPayout;
+
+					// --- CORRECTED LOGIC ---
+					// CTH winnings go ONLY to the CthWinnerGolferId, not the whole team.
+					perPlayerWinnings[req.CthWinnerGolferId] = perPlayerWinnings[req.CthWinnerGolferId] with { CthWinnings = perPlayerWinnings[req.CthWinnerGolferId].CthWinnings + actualCthPaidOut };
 				}
 			}
 
-			// 4. Overall Winner Payout (using actualOverallWinnerTeamIds determined above)
-			decimal overallWinnerPayoutPool = roundDetails.TotalPot - totalSkinsPaidOut - actualCthPaidOut;
+			decimal overallWinnerPayoutPool = roundDetails.TotalPot - totalSkinsPaidOut - finalSkinRolloverAmount - actualCthPaidOut;
 			var overallWinnerPayoutsResponse = new List<OverallWinnerPayoutResponse>();
 			decimal totalOverallWinnerPayoutPaid = 0;
-
-			if (overallWinnerPayoutPool > 0 && actualOverallWinnerTeamIds.Count != 0)
+			if (overallWinnerPayoutPool > 0 && actualOverallWinnerTeamIds.Any())
 			{
-				// Since actualOverallWinnerTeamIds will have 1 entry after tie resolution/override
 				decimal payoutPerWinningTeam = Math.Round(overallWinnerPayoutPool / actualOverallWinnerTeamIds.Count, 2, MidpointRounding.ToEven);
-
-				foreach (var winnerTeamId in actualOverallWinnerTeamIds) // Should be just one
+				foreach (var winnerTeamId in actualOverallWinnerTeamIds)
 				{
-					await connection.ExecuteAsync(
-						"UPDATE round_teams SET is_overall_winner = TRUE WHERE id = @TeamId AND round_id = @RoundId;",
-						new { TeamId = winnerTeamId, req.RoundId }, finalizationTransaction);
-
+					await connection.ExecuteAsync("UPDATE round_teams SET is_overall_winner = TRUE WHERE id = @TeamId AND round_id = @RoundId;", new { TeamId = winnerTeamId, req.RoundId }, finalizationTransaction);
 					overallWinnerPayoutsResponse.Add(new OverallWinnerPayoutResponse(winnerTeamId, teamsInRound[winnerTeamId].TeamNameOrNumber, payoutPerWinningTeam));
 					totalOverallWinnerPayoutPaid += payoutPerWinningTeam;
-				}
-				if (Math.Abs(totalOverallWinnerPayoutPaid - overallWinnerPayoutPool) > 0.005m && actualOverallWinnerTeamIds.Count == 1)
-				{ // Simpler check for single winner
-					logger.LogWarning("Overall winner payout pool {Pool} vs paid {Paid} for round {RoundId} has a rounding difference.", overallWinnerPayoutPool, totalOverallWinnerPayoutPaid, req.RoundId);
+					var members = participantsByTeam[winnerTeamId];
+					foreach (var member in members)
+					{
+						perPlayerWinnings[member.GolferId] = perPlayerWinnings[member.GolferId] with { OverallWinnings = perPlayerWinnings[member.GolferId].OverallWinnings + (payoutPerWinningTeam / members.Count) };
+					}
 				}
 			}
 
-			// 5. Final Update to Round Record (Set to Finalized)
+			const string insertPayoutSummarySql = @"
+                INSERT INTO round_payout_summary (round_id, golfer_id, team_id, total_winnings, breakdown, calculated_at)
+                VALUES (@RoundId, @GolferId, @TeamId, @TotalWinnings, @Breakdown::jsonb, NOW());";
+			foreach (var participant in participants)
+			{
+				var breakdown = perPlayerWinnings[participant.GolferId];
+				var totalWinnings = breakdown.SkinsWinnings + breakdown.CthWinnings + breakdown.OverallWinnings;
+				await connection.ExecuteAsync(insertPayoutSummarySql, new
+				{
+					req.RoundId,
+					participant.GolferId,
+					participant.TeamId,
+					TotalWinnings = totalWinnings,
+					Breakdown = JsonSerializer.Serialize(breakdown)
+				}, finalizationTransaction);
+			}
+
 			const string updateRoundToFinalizedSql = @"
-                UPDATE rounds
-                SET status = 'Finalized', 
-                    cth_winner_golfer_id = @CthWinnerGolferId,
-                    final_skin_rollover_amount = @FinalSkinRolloverAmount,
-                    final_total_skins_payout = @FinalTotalSkinsPayout,
-                    final_overall_winner_payout_amount = @FinalOverallWinnerPayoutAmount,
-                    finalized_at = NOW(),
-                    updated_at = NOW()
-                WHERE id = @RoundId AND status = 'Completed';";
-			var finalUpdateRowsAffected = await connection.ExecuteAsync(updateRoundToFinalizedSql, new
-			{
-				req.CthWinnerGolferId,
-				FinalSkinRolloverAmount = finalSkinRolloverAmount,
-				FinalTotalSkinsPayout = totalSkinsPaidOut,
-				FinalOverallWinnerPayoutAmount = totalOverallWinnerPayoutPaid,
-				req.RoundId
-			}, finalizationTransaction);
-
-			if (finalUpdateRowsAffected == 0)
-			{
-				await finalizationTransaction.RollbackAsync(ct);
-				logger.LogError("Failed to finalize round {RoundId} as it was not in 'Completed' state during final update step, or already finalized.", req.RoundId);
-				var stateConflictProblem = TypedResults.Problem(title: "Conflict", detail: "Round state was not 'Completed' during final update, or it was already finalized by another process.", statusCode: StatusCodes.Status409Conflict);
-				await SendResultAsync(stateConflictProblem);
-				return;
-			}
+                UPDATE rounds SET status = 'Finalized'::round_status_enum, cth_winner_golfer_id = @CthWinnerGolferId, final_skin_rollover_amount = @FinalSkinRolloverAmount, final_total_skins_payout = @FinalTotalSkinsPayout, final_overall_winner_payout_amount = @FinalOverallWinnerPayoutAmount, finalized_at = NOW(), updated_at = NOW()
+                WHERE id = @RoundId AND status = 'Completed'::round_status_enum;";
+			await connection.ExecuteAsync(updateRoundToFinalizedSql, new { req.CthWinnerGolferId, FinalSkinRolloverAmount = finalSkinRolloverAmount, FinalTotalSkinsPayout = totalSkinsPaidOut, FinalOverallWinnerPayoutAmount = totalOverallWinnerPayoutPaid, req.RoundId }, finalizationTransaction);
 
 			await finalizationTransaction.CommitAsync(ct);
 
-			// 6. Verification Check
+			const string selectPayoutsSql = "SELECT golfer_id as GolferId, total_winnings as TotalWinnings, breakdown FROM round_payout_summary WHERE round_id = @RoundId;";
+			var payoutSummariesFromDb = await connection.QueryAsync<(Guid GolferId, decimal TotalWinnings, string Breakdown)>(selectPayoutsSql, new { req.RoundId });
+
+			var playerPayouts = payoutSummariesFromDb.Select(p => {
+				var breakdown = JsonSerializer.Deserialize<PlayerPayoutBreakdown>(p.Breakdown) ?? new PlayerPayoutBreakdown(0, 0, 0);
+				var participant = participantsById[p.GolferId];
+				var team = teamsInRound[participant.TeamId];
+				return new PlayerPayoutSummaryResponse(p.GolferId, participant.FullName, team.Id, team.TeamNameOrNumber, p.TotalWinnings, breakdown);
+			}).ToList();
+
+
 			decimal totalDistributed = totalSkinsPaidOut + actualCthPaidOut + totalOverallWinnerPayoutPaid + finalSkinRolloverAmount;
 			string verificationMessage = $"Verification: Total Pot ({roundDetails.TotalPot:C2}). Distributed: Skins ({totalSkinsPaidOut:C2}) + CTH ({actualCthPaidOut:C2}) + Overall Winners ({totalOverallWinnerPayoutPaid:C2}) + Rollover ({finalSkinRolloverAmount:C2}) = {totalDistributed:C2}.";
-			if (Math.Abs(totalDistributed - roundDetails.TotalPot) > 0.01m * roundDetails.NumPlayers)
-			{
-				logger.LogError("Payout verification FAILED for Round {RoundId}! Pot: {TotalPot}, Distributed: {TotalDistributed}. Difference: {Difference}",
-					req.RoundId, roundDetails.TotalPot, totalDistributed, roundDetails.TotalPot - totalDistributed);
-				verificationMessage += " DISCREPANCY DETECTED!";
-			}
-			else
-			{
-				verificationMessage += " BALANCED.";
-			}
 
-			var finalResponse = new CompleteRoundResponse(
-				req.RoundId, "Finalized", roundDetails.TotalPot, skinPayoutsResponse, totalSkinsPaidOut,
-				finalSkinRolloverAmount, cthPayoutResponse, overallWinnerPayoutsResponse, totalOverallWinnerPayoutPaid,
-				verificationMessage
-			);
+			var finalResponse = new CompleteRoundResponse(req.RoundId, "Finalized", roundDetails.TotalPot, skinPayoutsResponse, totalSkinsPaidOut, finalSkinRolloverAmount, cthPayoutResponse, overallWinnerPayoutsResponse, totalOverallWinnerPayoutPaid, playerPayouts, verificationMessage);
 			await SendOkAsync(finalResponse, ct);
-
 		}
 		catch (Exception ex)
 		{
-			if (finalizationTransaction.Connection != null && finalizationTransaction.Connection.State == System.Data.ConnectionState.Open)
-			{
-				try { await finalizationTransaction.RollbackAsync(ct); }
-				catch (Exception rbEx) { logger.LogError(rbEx, "Exception during finalization transaction rollback for round {RoundId}", req.RoundId); }
-			}
+			await finalizationTransaction.RollbackAsync(ct);
 			logger.LogError(ex, "Error during finalization phase of completing round {RoundId}", req.RoundId);
 			var errorProblem = TypedResults.Problem(title: "Internal Server Error", detail: "An unexpected error occurred while finalizing the round and calculating payouts.", statusCode: StatusCodes.Status500InternalServerError);
 			await SendResultAsync(errorProblem);

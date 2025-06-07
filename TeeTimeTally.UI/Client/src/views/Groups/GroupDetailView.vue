@@ -2,7 +2,7 @@
 import { ref, onMounted, computed, watch, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGroupsStore } from '@/stores/groups';
-import { useCourseStore } from '@/stores/courses';
+import { useCoursesStore } from '@/stores/courses';
 import type { Group, GroupMember } from '@/models';
 
 // Import the sub-components
@@ -12,7 +12,7 @@ import FinancialEditorCard from './FinancialEditorCard.vue'; // New import
 import GroupMembersCard from './GroupDetail/GroupMembersCard.vue';
 
 const groupsStore = useGroupsStore();
-const courseStore = useCourseStore();
+const courseStore = useCoursesStore();
 const route = useRoute();
 const router = useRouter();
 

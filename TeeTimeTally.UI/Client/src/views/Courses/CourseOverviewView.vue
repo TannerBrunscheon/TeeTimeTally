@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRoute, RouterLink } from 'vue-router'; // Import useRoute to access route parameters and RouterLink for navigation
-import { useCourseStore } from '@/stores/courses';
+import { useCoursesStore } from '@/stores/courses';
 import { useAuthenticationStore } from '@/stores/authentication';
 import type { Course } from '@/models/course'; // Import the full Course interface for detailed view
 import { Permissions } from '@/models/auth/permissions';
@@ -10,7 +10,7 @@ import { AppError, ErrorType } from '@/primitives/error'; // Import AppError and
 // Access route information (e.g., for parameters)
 const route = useRoute();
 // Access Pinia stores
-const courseStore = useCourseStore();
+const courseStore = useCoursesStore();
 const authStore = useAuthenticationStore();
 
 // Reactive state for the course details

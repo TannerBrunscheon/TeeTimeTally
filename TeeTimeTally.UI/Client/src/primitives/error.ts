@@ -12,25 +12,27 @@ export enum ErrorType {
 export class AppError {
   public readonly message: string
   public readonly errorType: ErrorType
+  public readonly details?: any // Optional property to hold extra data like problemDetails
 
-  private constructor(message: string, errorType: ErrorType) {
+  private constructor(message: string, errorType: ErrorType, details?: any) {
     this.message = message
     this.errorType = errorType
+    this.details = details
   }
 
-  public static notFound(message: string): AppError {
-    return new AppError(message, ErrorType.NotFound)
+  public static notFound(message: string, details?: any): AppError {
+    return new AppError(message, ErrorType.NotFound, details)
   }
 
-  public static conflict(message: string): AppError {
-    return new AppError(message, ErrorType.Conflict)
+  public static conflict(message: string, details?: any): AppError {
+    return new AppError(message, ErrorType.Conflict, details)
   }
 
-  public static validation(message: string): AppError {
-    return new AppError(message, ErrorType.Validation)
+  public static validation(message: string, details?: any): AppError {
+    return new AppError(message, ErrorType.Validation, details)
   }
 
-  public static failure(message: string): AppError {
-    return new AppError(message, ErrorType.Failure)
+  public static failure(message: string, details?: any): AppError {
+    return new AppError(message, ErrorType.Failure, details)
   }
 }

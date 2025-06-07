@@ -64,7 +64,7 @@ public record StartRoundResponse(
 );
 
 // Helper for fetching group's active financial config ID and golfer names
-file record GroupDataForRoundStart(Guid ActiveFinancialConfigurationId, string Name, Guid Id); // Added GroupId as 'Id'
+file record GroupDataForRoundStart(Guid ActiveFinancialConfigurationId); // Added GroupId as 'Id'
 file record GolferDetail(Guid Id, string FullName); // For fetching golfer names
 
 
@@ -171,7 +171,7 @@ public class StartRoundEndpoint(
                 INSERT INTO rounds (group_id, course_id, financial_configuration_id, round_date, status, 
                                     num_players, total_pot, calculated_skin_value_per_hole, calculated_cth_payout, 
                                     created_by_golfer_id, is_deleted, deleted_at)
-                VALUES (@GroupId, @CourseId, @FinancialConfigurationId, @RoundDate, @Status, 
+                VALUES (@GroupId, @CourseId, @FinancialConfigurationId, @RoundDate, @Status::round_status_enum, 
                         @NumPlayers, @TotalPot, @CalculatedSkinValuePerHole, @CalculatedCthPayout, 
                         @CreatedByGolferId, FALSE, NULL)
                 RETURNING id;";

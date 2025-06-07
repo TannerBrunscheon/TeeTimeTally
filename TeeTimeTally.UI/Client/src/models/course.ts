@@ -1,5 +1,5 @@
 // Represents a summary of a course, typically for lists/dropdowns
-// Used by CourseOverviewView and populated by useCourseStore.fetchAllCourses
+// Used by CourseOverviewView and populated by useCoursesStore.fetchAllCourses
 export interface CourseSummary {
   id: string;
   name: string;

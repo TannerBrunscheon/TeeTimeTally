@@ -2,14 +2,14 @@
 import { ref, onMounted, computed, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { useGroupsStore } from '@/stores/groups';
-import { useCourseStore } from '@/stores/courses';
+import { useCoursesStore } from '@/stores/courses';
 import type { CourseSummary } from '@/models'; // Assuming CourseSummary for course list
 import type { CreateGroupRequest, CreateGroupFinancialConfigurationInputDTO } from '@/models'; // Adjust DTO import path
 import FinancialEditorCard from './FinancialEditorCard.vue'; // Import the reusable editor card
 
 const router = useRouter();
 const groupsStore = useGroupsStore();
-const courseStore = useCourseStore();
+const courseStore = useCoursesStore();
 
 // Form state
 const groupName = ref('');

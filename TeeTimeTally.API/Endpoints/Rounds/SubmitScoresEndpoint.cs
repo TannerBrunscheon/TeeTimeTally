@@ -34,7 +34,7 @@ public record SubmitScoresResponse(
 
 file record RoundValidationInfo(Guid Id, string Status, Guid GroupId);
 file record TeamInRoundInfo(Guid TeamId, string TeamNameOrNumber);
-file record StoredScoreInfo(Guid TeamId, int HoleNumber, int Score);
+file record StoredScoreInfo(Guid TeamId, short HoleNumber);
 
 
 // --- Fluent Validator for SubmitScoresRequest ---
@@ -101,7 +101,7 @@ public class SubmitScoresRequestValidator : Validator<SubmitScoresRequest>
 			new { RoundId = roundId });
 
 		if (roundStatus == null) return false;
-		return roundStatus == "PendingSetup" || roundStatus == "SetupComplete" || roundStatus == "InProgress";
+		return roundStatus == "SetupComplete" || roundStatus == "InProgress" || roundStatus == "Completed";
 	}
 
 	private async Task<IEnumerable<Guid>> GetTeamsInRoundAsync(Guid roundId, CancellationToken token)
@@ -137,7 +137,7 @@ public class SubmitScoresEndpoint(NpgsqlDataSource dataSource, ILogger<SubmitSco
 			await SendNotFoundAsync(ct);
 			return;
 		}
-		if (roundValidationInfo.Status == "Completed" || roundValidationInfo.Status == "Finalized")
+		if (roundValidationInfo.Status == "Finalized")
 		{
 			await SendResultAsync(TypedResults.Problem(title: "Conflict", detail: $"Scores cannot be submitted for a round that is already '{roundValidationInfo.Status}'.", statusCode: StatusCodes.Status409Conflict));
 			return;
@@ -195,6 +195,17 @@ public class SubmitScoresEndpoint(NpgsqlDataSource dataSource, ILogger<SubmitSco
 					scoreEntry.Score
 				}, transaction);
 				if (rowsAffected > 0) scoresProcessedCount++;
+			}
+
+			if (roundValidationInfo.Status == "SetupComplete" || roundValidationInfo.Status == "PendingSetup")
+			{
+				await connection.ExecuteAsync(
+					"UPDATE rounds SET status = 'InProgress' WHERE id = @RoundId;",
+					new { req.RoundId },
+					transaction
+				);
+				newRoundStatus = "InProgress";
+				logger.LogInformation("Round {RoundId} status updated to InProgress on first score submission.", req.RoundId);
 			}
 
 			// Update round's updated_at timestamp

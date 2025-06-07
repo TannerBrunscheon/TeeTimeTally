@@ -8,7 +8,7 @@ import { defineStore } from 'pinia';
 import { useAuthenticationStore } from './authentication'; // Assuming this store exists
 import { Permissions } from '@/models/auth/permissions'; // Assuming this exists
 
-export const useCourseStore = defineStore('course', () => {
+export const useCoursesStore = defineStore('course', () => {
   const courses = ref<CourseSummary[]>([]); // Added: to store the list for the overview
   const isLoadingCourses = ref(false);
   const coursesError = ref<AppError | null>(null); // Kept name as coursesError to match view
@@ -31,7 +31,7 @@ export const useCourseStore = defineStore('course', () => {
     try {
       // Use searchCourses with a high limit to fetch "all" courses.
       // Adjust limit as appropriate for your application's needs.
-      const searchParams: SearchCoursesRequest = { limit: 500, offset: 0 }; // Example: fetch up to 500 courses
+      const searchParams: SearchCoursesRequest = { limit: 100, offset: 0 }; // Example: fetch up to 500 courses
       const searchResult = await searchCourses(searchParams);
 
       if (searchResult.isSuccess && searchResult.value) {

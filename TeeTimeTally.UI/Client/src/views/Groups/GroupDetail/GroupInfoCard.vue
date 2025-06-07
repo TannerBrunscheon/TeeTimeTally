@@ -2,7 +2,7 @@
 import { ref, watch, computed } from 'vue';
 import type { Group, Course, UpdateGroupRequest } from '@/models';
 import { useGroupsStore } from '@/stores/groups';
-import { useCourseStore } from '@/stores/courses';
+import { useCoursesStore } from '@/stores/courses';
 import { useAuthenticationStore } from '@/stores/authentication';
 import { Permissions } from '@/models/auth/permissions';
 
@@ -14,7 +14,7 @@ const props = defineProps<{
 const emit = defineEmits(['groupUpdated']);
 
 const groupsStore = useGroupsStore();
-const courseStore = useCourseStore();
+const courseStore = useCoursesStore();
 const authStore = useAuthenticationStore();
 
 const isEditing = ref(false);
