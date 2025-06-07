@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useRoundsStore } from '@/stores/rounds';
+import { useStatusBadges } from '@/composables/useStatusBadges';
 import type { GetRoundByIdResponse, TeamHoleScoreRequest } from '@/models/round';
 import Scorecard from '@/views/Rounds/Scorecard.vue';
 import FinalizationControls from '@/views/Rounds/FinalizationControls.vue';
@@ -15,6 +16,7 @@ const props = defineProps<{
 
 const roundsStore = useRoundsStore();
 const scorecardRef = ref<InstanceType<typeof Scorecard> | null>(null);
+  const { getStatusBadgeClass, formatStatusText } = useStatusBadges(); // Get both functions
 
 // --- STATE ---
 const isLoading = ref(true);
@@ -115,9 +117,7 @@ onMounted(async () => {
       <div class="card mb-4">
         <div class="card-header d-flex justify-content-between align-items-center">
             <h2 class="mb-0">{{ round.courseName }} - {{ new Date(round.roundDate).toLocaleDateString() }}</h2>
-            <span :class="`badge bg-${round.status === 'Finalized' ? 'success' : 'secondary'}`" style="font-size: 1rem;">
-                {{ round.status }}
-            </span>
+            <span :class="getStatusBadgeClass(round.status)" class="fs-5">{{ formatStatusText(round.status) }}</span>
         </div>
         <div class="card-body">
             <h5 class="card-title">{{ round.groupName }}</h5>

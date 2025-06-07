@@ -3,11 +3,14 @@ import { onMounted, computed, watchEffect } from 'vue'; // Import watchEffect
 import { RouterLink, useRouter } from 'vue-router';
 import { useAuthenticationStore } from '@/stores/authentication';
 import { useRoundsStore } from '@/stores/rounds';
+import { useStatusBadges } from '@/composables/useStatusBadges';
 import { Permissions } from '@/models/auth/permissions';
+
 
 const authenticationStore = useAuthenticationStore();
 const roundsStore = useRoundsStore();
 const router = useRouter();
+const { getStatusBadgeClass, formatStatusText } = useStatusBadges(); // Get both functions
 
 // user computed property is not strictly needed here if only used in template via store directly
 // const user = computed(() => authenticationStore.user);
@@ -46,28 +49,6 @@ function formatDate(dateString: string): string {
   }
 }
 
-// Helper function to format status strings for display
-function formatStatus(status: string): string {
-  const statusMap: { [key: string]: string } = {
-    'PendingSetup': 'Pending Setup',
-    'SetupComplete': 'Setup Complete',
-    'InProgress': 'In Progress',
-    'Completed': 'Completed (Awaiting Finalization)',
-  };
-  return statusMap[status] || status;
-}
-
-// Helper function to determine badge class based on status
-function statusBadgeClass(status: string): string {
-  const baseClass = 'badge rounded-pill';
-  switch (status) {
-    case 'PendingSetup': return `${baseClass} bg-secondary`;
-    case 'SetupComplete': return `${baseClass} bg-info text-dark`;
-    case 'InProgress': return `${baseClass} bg-warning text-dark`;
-    case 'Completed': return `${baseClass} bg-success`;
-    default: return `${baseClass} bg-light text-dark`;
-  }
-}
 
 // Function to navigate to a specific round's overview page
 function navigateToRound(roundId: string) {
@@ -144,7 +125,7 @@ function navigateToRound(roundId: string) {
               <small class="text-muted">{{ formatDate(round.roundDate) }}</small>
             </div>
             <p class="mb-1">
-              Status: <span :class="statusBadgeClass(round.status)">{{ formatStatus(round.status) }}</span>
+              Status: <span :class="getStatusBadgeClass(round.status)">{{ formatStatusText(round.status) }}</span>
               <span v-if="round.numPlayers !== null && round.numPlayers > 0" class="ms-3">
                 Players: {{ round.numPlayers }}
               </span>

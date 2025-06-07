@@ -1,3 +1,56 @@
+<script setup lang="ts">
+import { onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { useRoundsStore } from '@/stores/rounds';
+import { useStatusBadges } from '@/composables/useStatusBadges';
+
+const props = defineProps({
+  groupId: {
+    type: String,
+    required: true,
+  },
+});
+
+const router = useRouter();
+const roundsStore = useRoundsStore();
+const { groupRoundHistory, isLoadingGroupRoundHistory, groupRoundHistoryError } = storeToRefs(roundsStore);
+const { getStatusBadgeClass, formatStatusText } = useStatusBadges(); // Get both functions
+
+onMounted(() => {
+  roundsStore.fetchGroupRoundHistory(props.groupId);
+});
+
+const navigateToRound = (roundId: string) => {
+  router.push({ name: 'round-overview', params: { roundId } });
+};
+
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+  }).format(value);
+};
+
+const statusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'Finalized':
+      return 'badge bg-success';
+    case 'Completed':
+      return 'badge bg-info';
+    case 'InProgress':
+      return 'badge bg-primary';
+    case 'SetupComplete':
+      return 'badge bg-secondary';
+    case 'PendingSetup':
+      return 'badge bg-warning text-dark';
+    default:
+      return 'badge bg-light text-dark';
+  }
+};
+</script>
+
+
 <template>
   <div class="card mt-4">
     <div class="card-header">
@@ -33,7 +86,7 @@
               <td>{{ round.courseName }}</td>
               <td>{{ round.numPlayers }}</td>
               <td>{{ formatCurrency(round.totalPot) }}</td>
-              <td><span :class="statusBadgeClass(round.status)">{{ round.status }}</span></td>
+              <td><span :class="getStatusBadgeClass(round.status)">{{ formatStatusText(round.status) }}</span></td>
             </tr>
           </tbody>
         </table>
@@ -41,56 +94,6 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import { onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import { storeToRefs } from 'pinia';
-import { useRoundsStore } from '@/stores/rounds';
-
-const props = defineProps({
-  groupId: {
-    type: String,
-    required: true,
-  },
-});
-
-const router = useRouter();
-const roundsStore = useRoundsStore();
-const { groupRoundHistory, isLoadingGroupRoundHistory, groupRoundHistoryError } = storeToRefs(roundsStore);
-
-onMounted(() => {
-  roundsStore.fetchGroupRoundHistory(props.groupId);
-});
-
-const navigateToRound = (roundId: string) => {
-  router.push({ name: 'round-overview', params: { roundId } });
-};
-
-const formatCurrency = (value: number) => {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-  }).format(value);
-};
-
-const statusBadgeClass = (status: string) => {
-  switch (status) {
-    case 'Finalized':
-      return 'badge bg-success';
-    case 'Completed':
-      return 'badge bg-info';
-    case 'InProgress':
-      return 'badge bg-primary';
-    case 'SetupComplete':
-      return 'badge bg-secondary';
-    case 'PendingSetup':
-      return 'badge bg-warning text-dark';
-    default:
-      return 'badge bg-light text-dark';
-  }
-};
-</script>
 
 <style scoped>
 .table-hover tbody tr:hover {
