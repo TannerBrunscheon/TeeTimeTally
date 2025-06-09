@@ -7,12 +7,14 @@ import { useRoundsStore } from '@/stores/rounds'
 import type { Group, GroupMember } from '@/models/group'
 import type { CourseSummary } from '@/models/course'
 import type { TeamDefinitionRequest } from '@/models/round'
+import AddMembersModal from '@/views/Groups/GroupDetail/GroupMembers/AddMembersModal.vue';
 
 // --- HOOKS and STORES ---
 const router = useRouter()
 const groupsStore = useGroupsStore()
 const coursesStore = useCoursesStore()
 const roundsStore = useRoundsStore()
+const addMembersModalRef = ref<InstanceType<typeof AddMembersModal> | null>(null);
 
 // --- STATE ---
 const isLoading = ref(true)
@@ -176,6 +178,19 @@ async function handleCreateRound() {
   }
 }
 
+function openAddMembersModal() {
+  addMembersModalRef.value?.openModal();
+}
+
+async function handleMembersAdded() {
+  if (selectedGroupId.value) {
+    const membersResult = await groupsStore.fetchGroupMembers(selectedGroupId.value);
+    if (membersResult.isSuccess && membersResult.value) {
+      groupMembers.value = membersResult.value;
+    }
+  }
+}
+
 // --- WATCHERS ---
 watch(selectedGroupId, async (newGroupId) => {
   if (newGroupId) {
@@ -237,7 +252,7 @@ function getGolferName(golferId: string): string {
     <h1 class="mb-4">Create a New Round</h1>
 
     <div class="card mb-4">
-      <div class="card-header">
+      <div class="card-header bg-primary text-white">
         <h3>Step 1: Select a Group</h3>
       </div>
       <div class="card-body">
@@ -273,7 +288,7 @@ function getGolferName(golferId: string): string {
 
         <div v-else>
           <div class="card mb-4">
-            <div class="card-header">
+            <div class="card-header bg-secondary text-white">
               <h3>Step 2: Round Details</h3>
             </div>
             <div class="card-body">
@@ -296,11 +311,16 @@ function getGolferName(golferId: string): string {
           </div>
 
           <div class="card mb-4">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex justify-content-between align-items-center bg-info text-dark">
                 <h3>Step 3: Select Players ({{ selectedGolferIds.length }} selected)</h3>
-                <router-link :to="{ name: 'group-detail', params: { groupId: selectedGroupId } }" class="btn btn-outline-secondary btn-sm">
-                  <i class="bi bi-pencil-square me-1"></i> Edit Group Members
-                </router-link>
+                <div>
+                  <button @click="openAddMembersModal" class="btn btn-outline-dark btn-sm me-2">
+                    <i class="bi bi-person-plus-fill me-1"></i> Add Members
+                  </button>
+                  <router-link :to="{ name: 'group-detail', params: { groupId: selectedGroupId } }" class="btn btn-outline-dark btn-sm">
+                    <i class="bi bi-pencil-square me-1"></i> Edit Group
+                  </router-link>
+                </div>
             </div>
             <div class="card-body">
                 <div v-if="!hasEnoughMembers" class="alert alert-warning">
@@ -321,7 +341,7 @@ function getGolferName(golferId: string): string {
           </div>
 
           <div class="card mb-4">
-            <div class="card-header">
+            <div class="card-header bg-warning text-dark">
               <h3>Step 4: Form Teams</h3>
             </div>
             <div class="card-body">
@@ -376,6 +396,13 @@ function getGolferName(golferId: string): string {
       <h2>Select a Group</h2>
       <p>Please select a group from the dropdown above to begin creating a new round.</p>
     </div>
+    <AddMembersModal
+        v-if="selectedGroupId"
+        ref="addMembersModalRef"
+        :group-id="selectedGroupId"
+        :current-group-members="groupMembers"
+        @members-added="handleMembersAdded"
+    />
   </div>
 </template>
 
