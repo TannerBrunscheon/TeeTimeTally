@@ -11,6 +11,7 @@ import { Permissions } from '@/models/auth/permissions'; // Assuming this exists
 export const useCoursesStore = defineStore('course', () => {
   const courses = ref<CourseSummary[]>([]); // Added: to store the list for the overview
   const isLoadingCourses = ref(false);
+  const isLoadingCreateCourse = ref(false); // State for the creation process
   const coursesError = ref<AppError | null>(null); // Kept name as coursesError to match view
   const authenticationStore = useAuthenticationStore();
 
@@ -125,12 +126,55 @@ export const useCoursesStore = defineStore('course', () => {
     }
   }
 
+  /**
+  * Creates a new course.
+  * @param payload The data for the new course.
+  */
+  async function createCourse(payload: CreateCourseRequest): Promise<Result<Course>> {
+    if (!authenticationStore.hasPermission(Permissions.CreateCourses)) {
+      const unauthorizedError = AppError.failure('You are not authorized to create courses.');
+      coursesError.value = unauthorizedError;
+      return Result.failureWithValue(unauthorizedError);
+    }
+
+    isLoadingCreateCourse.value = true;
+    coursesError.value = null;
+    try {
+      const { data } = await useHttpClient().post<Course>('/api/courses', payload);
+      isLoadingCreateCourse.value = false;
+      await fetchAllCourses(); // Refresh list after creation
+      return Result.successWithValue(data);
+    } catch (error: any) {
+      isLoadingCreateCourse.value = false;
+      const apiError = error as ResponseError;
+      let appError: AppError;
+
+      if (apiError.response?.status === 409) {
+        const detail = (apiError.response.data as any)?.detail || 'A course with this name already exists.';
+        appError = AppError.conflict(detail);
+      } else if (apiError.response?.status === 400 && (apiError.response.data as any)?.errors) {
+        const validationErrors = (apiError.response.data as any).errors;
+        const firstErrorKey = Object.keys(validationErrors)[0];
+        const firstErrorMessage = validationErrors[firstErrorKey]?.[0] || 'Please check your input.';
+        appError = AppError.validation(firstErrorMessage);
+      } else {
+        const detail = (apiError.response?.data as any)?.detail || apiError.message || 'Failed to create course.';
+        appError = AppError.failure(detail);
+      }
+
+      coursesError.value = appError;
+      return Result.failureWithValue(appError);
+    }
+  }
+
   return {
-    courses, // Expose the list of course summaries
+    courses,
     isLoadingCourses,
-    coursesError, // Kept as coursesError to match the view's expectation
-    fetchAllCourses, // Expose the new function
+    coursesError,
+    isLoadingCreateCourse, // Expose loading state
+    fetchAllCourses,
     getCourseById,
-    searchCourses
+    searchCourses,
+    createCourse, // Expose new action
   };
 });

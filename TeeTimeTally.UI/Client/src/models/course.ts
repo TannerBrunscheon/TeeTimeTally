@@ -54,6 +54,16 @@ export interface UpdateCourseRequest {
   cthHoleNumber?: number;
 }
 
-// You can add other course-related DTOs or interfaces here as needed, for example:
-// - CourseDetails (if different from Course, e.g., includes hole-by-hole info)
-// - CreateCourseResponse / UpdateCourseResponse (if different from Course)
+export interface CreateCourseRequest {
+  name: string;
+  cthHoleNumber: number;
+}
+
+// Matches the C# record: CreateCourseResponse
+export interface CreateCourseResponse {
+  id: string;
+  name: string;
+  cthHoleNumber: number;
+  createdAt: string; // Representing DateTime as string
+  updatedAt: string; // Representing DateTime as string
+}

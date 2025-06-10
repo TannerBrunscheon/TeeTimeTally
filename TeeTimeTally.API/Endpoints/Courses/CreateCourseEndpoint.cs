@@ -4,6 +4,7 @@ using FastEndpoints;
 using Microsoft.AspNetCore.Authorization;
 using Npgsql;
 using System.Security.Claims;
+using TeeTimeTally.API.Models;
 using TeeTimeTally.Shared.Auth; // For Auth0Scopes
 
 // Define this if not already globally available
@@ -14,7 +15,7 @@ namespace TeeTimeTally.API.Endpoints.Courses;
 // 1. Request DTO
 public record CreateCourseRequest(string Name, int CthHoleNumber);
 // 1. Response DTO
-public record CreateCourseResponse(Guid Id, string Name, int CthHoleNumber, DateTime CreatedAt, DateTime UpdatedAt);
+public record CreateCourseResponse(Guid Id, string Name, short CthHoleNumber, DateTime CreatedAt, DateTime UpdatedAt);
 
 
 [HttpPost("/courses"), Authorize(Policy = Auth0Scopes.CreateCourses)]
@@ -22,11 +23,23 @@ public class CreateCourseEndpoint(NpgsqlDataSource dataSource, ILogger<DeleteCou
 {
 	public override async Task HandleAsync(CreateCourseRequest req, CancellationToken ct)
 	{
-		var adminGolferIdString = User.FindFirstValue(ClaimTypes.NameIdentifier);
-		if (string.IsNullOrEmpty(adminGolferIdString) || !Guid.TryParse(adminGolferIdString, out var adminGolferId))
+		var auth0UserId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+		if (string.IsNullOrEmpty(auth0UserId))
 		{
-			await SendUnauthorizedAsync(ct); // This correctly sends a 401 and terminates.
-			return; // Good practice to explicitly return after sending a terminal response.
+			await SendResultAsync(TypedResults.Problem(title: "Unauthorized", detail: "User identifier not found.", statusCode: StatusCodes.Status401Unauthorized));
+			return;
+		}
+
+		await using var connection = await dataSource.OpenConnectionAsync(ct);
+
+		var currentUserInfo = await connection.QuerySingleOrDefaultAsync<CurrentUserGolferInfo>(
+			"SELECT id AS Id, is_system_admin AS IsSystemAdmin FROM golfers WHERE auth0_user_id = @Auth0UserId AND is_deleted = FALSE;",
+			new { Auth0UserId = auth0UserId });
+
+		if (currentUserInfo == null || !currentUserInfo.IsSystemAdmin)
+		{
+			await SendResultAsync(TypedResults.Problem(title: "Forbidden", detail: "User profile not found or inactive.", statusCode: StatusCodes.Status403Forbidden));
+			return;
 		}
 
 		const string sql = @"
@@ -42,13 +55,11 @@ public class CreateCourseEndpoint(NpgsqlDataSource dataSource, ILogger<DeleteCou
 
 		try
 		{
-			await using var connection = await dataSource.OpenConnectionAsync(ct);
-
 			createdCourseResponse = await connection.QuerySingleOrDefaultAsync<CreateCourseResponse>(sql, new
 			{
 				req.Name,
 				req.CthHoleNumber,
-				CreatedByGolferId = adminGolferId
+				CreatedByGolferId = currentUserInfo.Id
 			});
 		}
 		catch (PostgresException ex)
