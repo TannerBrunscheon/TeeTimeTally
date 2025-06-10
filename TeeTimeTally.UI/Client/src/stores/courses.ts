@@ -1,7 +1,7 @@
 import { ref } from 'vue'; // Import ref
 import { useHttpClient } from '@/composables/useHttpClient';
 // Assuming CourseSummary is also in '@/models/course'
-import type { Course, SearchCoursesRequest, CourseSummary } from '@/models/course';
+import type { Course, SearchCoursesRequest, CourseSummary, CreateCourseRequest } from '@/models/course';
 import { AppError, type ResponseError } from '@/primitives/error';
 import { Result } from '@/primitives/result';
 import { defineStore } from 'pinia';
