@@ -169,12 +169,12 @@ defineExpose({
             </td>
             <!-- Front 9 -->
             <td v-for="holeNumber in 9" :key="`f-${holeNumber}`">
-              <input type="number" class="form-control form-control-sm text-center" :value="getScore(team.teamId, holeNumber)" @input="onScoreInput(team.teamId, holeNumber, $event)" :readonly="readonly" :tabindex="(holeNumber - 1) * round.teams.length + teamIndex + 1" min="1"/>
+              <input type="number" class="form-control form-control-sm text-center" :value="getScore(team.teamId, holeNumber)" @input="onScoreInput(team.teamId, holeNumber, $event)" :readonly="readonly" :tabindex="(teamIndex * 18) + holeNumber" min="1"/>
             </td>
             <td class="table-info fw-bold">{{ teamScores[team.teamId]?.front || 0 }}</td>
             <!-- Back 9 -->
             <td v-for="holeNumber in 9" :key="`b-${holeNumber}`">
-              <input type="number" class="form-control form-control-sm text-center" :value="getScore(team.teamId, holeNumber + 9)" @input="onScoreInput(team.teamId, holeNumber + 9, $event)" :readonly="readonly" :tabindex="(holeNumber + 8) * round.teams.length + teamIndex + 1" min="1"/>
+              <input type="number" class="form-control form-control-sm text-center" :value="getScore(team.teamId, holeNumber + 9)" @input="onScoreInput(team.teamId, holeNumber + 9, $event)" :readonly="readonly" :tabindex="(teamIndex * 18) + holeNumber + 9" min="1"/>
             </td>
             <td class="table-info fw-bold">{{ teamScores[team.teamId]?.back || 0 }}</td>
             <!-- Total -->
