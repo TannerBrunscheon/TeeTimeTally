@@ -250,7 +250,6 @@ public class StartRoundEndpoint(
 	}
 }
 
-
 public class StartRoundRequestValidator : Validator<StartRoundRequest>
 {
 	private readonly NpgsqlDataSource _dataSource;
@@ -294,30 +293,6 @@ public class StartRoundRequestValidator : Validator<StartRoundRequest>
 				.Must(ids => ids.Count >= 2 && ids.Count <= 3)
 				.WithMessage(t => $"Team '{t.TeamNameOrNumber}' has an invalid size ({t.GolferIdsInTeam.Count}). Teams must have 2 or 3 players.");
 		});
-
-		// Complex rule for team sizes based on total player parity (REQ-RS-003.2)
-		RuleFor(x => x) // Validating the whole request object
-			.Must(req =>
-			{
-				if (req.Teams.Count == 0 || req.AllParticipatingGolferIds.Count == 0) return true; // Handled by other rules
-
-				int totalPlayers = req.AllParticipatingGolferIds.Count;
-				int threePlayerTeams = req.Teams.Count(t => t.GolferIdsInTeam.Count == 3);
-				int twoPlayerTeams = req.Teams.Count(t => t.GolferIdsInTeam.Count == 2);
-
-				if (totalPlayers % 2 != 0) // Odd number of total players
-				{
-					// Expect exactly one 3-player team, or an odd number of 3-player teams if many players
-					// For simplicity with REQ-RS-003.2 ("one or more teams of 3"), let's ensure there's at least one 3-player team.
-					// And that total players = 3 * threePlayerTeams + 2 * twoPlayerTeams
-					return threePlayerTeams >= 1 && threePlayerTeams * 3 + twoPlayerTeams * 2 == totalPlayers;
-				}
-				else // Even number of total players
-				{
-					// Expect zero 3-player teams
-					return threePlayerTeams == 0 && twoPlayerTeams * 2 == totalPlayers;
-				}
-			}).WithMessage("Team composition is incorrect for the number of players. For odd totals, use three-player teams as needed. For even totals, all teams should be two players.");
 	}
 
 	private async Task<bool> DoesCourseExistAndIsActiveAsync(Guid courseId, CancellationToken token)

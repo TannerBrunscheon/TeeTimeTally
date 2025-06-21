@@ -31,6 +31,7 @@ const selectedCourseId = ref<string>('')
 const roundDate = ref(new Date().toISOString().split('T')[0])
 const selectedGolferIds = ref<string[]>([])
 const teams = ref<TeamDefinitionRequest[]>([])
+const numberOfThreePersonTeams = ref(0); // New state for the dropdown
 
 // --- COMPUTED PROPERTIES ---
 const selectedGroup = computed((): Group | undefined => {
@@ -68,6 +69,20 @@ const isFormValid = computed(() => {
   return playersOnTeams.length === selectedGolfers.value.length && !playersOnTeams.includes('');
 })
 
+const threePersonTeamOptions = computed(() => {
+    const numPlayers = selectedGolferIds.value.length;
+    if (numPlayers < 3) return [0];
+    const max = Math.floor(numPlayers / 3);
+    const options = [];
+    for (let i = 0; i <= max; i++) {
+        // Only add option if the remaining players can form pairs
+        if ((numPlayers - (i * 3)) >= 0 && (numPlayers - (i * 3)) % 2 === 0) {
+            options.push(i);
+        }
+    }
+    return options;
+});
+
 
 // --- METHODS ---
 
@@ -103,30 +118,42 @@ function resetRoundDetails() {
  * Creates empty team structures based on the number of selected players.
  */
 function prepareTeamSlots() {
-  errorMessage.value = null
-  const numPlayers = selectedGolfers.value.length
+  errorMessage.value = null;
+  const numPlayers = selectedGolferIds.value.length;
+  const numThreePersonTeams = numberOfThreePersonTeams.value;
+
   if (numPlayers < 6) {
-    errorMessage.value = 'Please select at least 6 players to form teams.'
-    return
+    errorMessage.value = 'Please select at least 6 players to form teams.';
+    return;
   }
 
-  const newTeams: TeamDefinitionRequest[] = []
-  let teamNumber = 1
+  const remainingPlayers = numPlayers - (numThreePersonTeams * 3);
+  if (remainingPlayers < 0 || remainingPlayers % 2 !== 0) {
+    errorMessage.value = `This combination is not possible. ${numThreePersonTeams} team(s) of 3 leaves ${remainingPlayers} player(s), which cannot form pairs.`;
+    teams.value = [];
+    return;
+  }
 
-  const numTeams = Math.floor(numPlayers / 2);
-  const hasTeamOfThree = numPlayers % 2 !== 0;
+  const numTwoPersonTeams = remainingPlayers / 2;
+  const newTeams: TeamDefinitionRequest[] = [];
+  let teamNumber = 1;
 
-  for (let i = 0; i < numTeams; i++) {
-    const isFirstAndOdd = i === 0 && hasTeamOfThree;
-    const teamSize = isFirstAndOdd ? 3 : 2;
+  for (let i = 0; i < numThreePersonTeams; i++) {
     newTeams.push({
       teamNameOrNumber: `Team ${teamNumber++}`,
-      golferIdsInTeam: Array(teamSize).fill('') // Create empty slots
-    })
+      golferIdsInTeam: Array(3).fill('')
+    });
+  }
+  for (let i = 0; i < numTwoPersonTeams; i++) {
+    newTeams.push({
+      teamNameOrNumber: `Team ${teamNumber++}`,
+      golferIdsInTeam: Array(2).fill('')
+    });
   }
 
-  teams.value = newTeams
+  teams.value = newTeams;
 }
+
 
 /**
  * Randomly assigns selected players to the prepared team slots.
@@ -209,8 +236,19 @@ watch(selectedGroupId, async (newGroupId) => {
   }
 })
 
-watch(selectedGolferIds, () => {
-  // Reset teams if the player selection changes
+watch(selectedGolferIds, (newSelection) => {
+  const numPlayers = newSelection.length;
+
+  // Get the new valid options for the number of 3-person teams
+  const newValidOptions = threePersonTeamOptions.value;
+
+  // Check if the current selection is still a valid option
+  if (!newValidOptions.includes(numberOfThreePersonTeams.value)) {
+    // If not, reset to the default value
+    numberOfThreePersonTeams.value = (numPlayers % 2 !== 0 && numPlayers >= 3) ? 1 : 0;
+  }
+
+  // Reset teams if the player selection changes, prompting user to re-prepare slots
   teams.value = []
 })
 
@@ -345,11 +383,19 @@ function getGolferName(golferId: string): string {
               <h3>Step 4: Form Teams</h3>
             </div>
             <div class="card-body">
-                <div class="d-flex gap-2 mb-3">
+                <div class="d-flex flex-wrap gap-2 mb-3 align-items-center">
                     <button class="btn btn-secondary" @click="prepareTeamSlots" :disabled="selectedGolferIds.length < 6">
                         <i class="bi bi-people-fill me-2"></i>Prepare Team Slots
                     </button>
-                    <button v-if="teams.length > 0" class="btn btn-outline-primary" @click="randomizeTeams">
+
+                    <div v-if="selectedGolferIds.length >= 3" class="d-flex align-items-center ms-md-3">
+                        <label for="three-person-teams" class="form-label me-2 mb-0 text-nowrap">Number of 3-person teams:</label>
+                        <select id="three-person-teams" class="form-select form-select-sm" v-model.number="numberOfThreePersonTeams" style="max-width: 80px;">
+                            <option v-for="n in threePersonTeamOptions" :key="n" :value="n">{{ n }}</option>
+                        </select>
+                    </div>
+
+                    <button v-if="teams.length > 0" class="btn btn-outline-primary ms-auto" @click="randomizeTeams">
                         <i class="bi bi-shuffle me-2"></i>Randomize Teams
                     </button>
                 </div>
