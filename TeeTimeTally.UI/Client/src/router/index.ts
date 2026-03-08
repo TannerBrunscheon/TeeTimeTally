@@ -77,6 +77,14 @@ const router = createRouter({
           props: true, // Allows groupId to be passed as a prop
           meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
         }
+        ,
+        {
+          path: ':groupId/reports/year/:year',
+          name: 'group-year-report',
+          component: () => import('../views/Groups/GroupYearEndReport.vue'),
+          props: true,
+          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroupRounds }
+        }
       ]
     }, {
       path: '/courses',

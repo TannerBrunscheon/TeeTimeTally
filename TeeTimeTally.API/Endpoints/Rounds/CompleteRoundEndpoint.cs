@@ -323,6 +323,23 @@ public class CompleteRoundEndpoint(NpgsqlDataSource dataSource, ILogger<Complete
 
 			await finalizationTransaction.CommitAsync(ct);
 
+			// Refresh materialized views asynchronously so the year-end reports pick up this finalized round.
+			// Fire-and-forget so we don't delay the response; errors are logged.
+			_ = Task.Run(async () =>
+			{
+				try
+				{
+					await using var refreshConn = await dataSource.OpenConnectionAsync();
+					await refreshConn.ExecuteAsync("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_round_player_diffs;");
+					await refreshConn.ExecuteAsync("REFRESH MATERIALIZED VIEW CONCURRENTLY mv_round_team_diffs;");
+					logger.LogInformation("Refreshed materialized views after finalizing round {RoundId}", req.RoundId);
+				}
+				catch (Exception ex)
+				{
+					logger.LogError(ex, "Failed to refresh materialized views after finalizing round {RoundId}", req.RoundId);
+				}
+			});
+
 			const string selectPayoutsSql = "SELECT golfer_id as GolferId, total_winnings as TotalWinnings, breakdown FROM round_payout_summary WHERE round_id = @RoundId;";
 			var payoutSummariesFromDb = await connection.QueryAsync<(Guid GolferId, decimal TotalWinnings, string Breakdown)>(selectPayoutsSql, new { req.RoundId });
 

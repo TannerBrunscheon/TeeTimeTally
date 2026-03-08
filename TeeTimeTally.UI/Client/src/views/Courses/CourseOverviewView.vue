@@ -222,4 +222,3 @@ function formatDate(dateString: string | null | undefined): string {
     margin-top: 0.5rem;
 }
 </style>
-```
