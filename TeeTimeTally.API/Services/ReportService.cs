@@ -224,15 +224,18 @@ public class ReportService
         }
 
         const string groupAvgSql = @"
-            -- return as text for defensive parsing
-            SELECT AVG(team_round_score_total)::text AS AvgGroupVsPar
-            FROM (
-                SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
-                FROM round_scores rs
-                JOIN round_teams rt ON rs.round_team_id = rt.id
-                WHERE rs.round_id = ANY(@RoundIds)
-                GROUP BY rs.round_id, rs.round_team_id
-            ) t;
+            -- compute per-player average across all team-rounds (team total divided by team size)
+            WITH per_round AS (
+                SELECT rp.round_id,
+                       SUM(rs.score) AS team_round_score_total,
+                       COUNT(DISTINCT rp.golfer_id) AS member_count
+                FROM round_participants rp
+                JOIN round_scores rs ON rp.round_id = rs.round_id AND rp.round_team_id = rs.round_team_id
+                WHERE rp.round_id = ANY(@RoundIds)
+                GROUP BY rp.round_id, rp.round_team_id
+            )
+            SELECT AVG((team_round_score_total::numeric / NULLIF(member_count,0)))::text AS AvgGroupVsPar
+            FROM per_round;
         ";
     var groupAvgRaw = await connection.QuerySingleOrDefaultAsync(groupAvgSql, new { RoundIds = roundIds.ToArray() });
     decimal? groupAvg = null;
@@ -240,23 +243,27 @@ public class ReportService
     {
         try
         {
-            var parsed = ParseDecimal((object)groupAvgRaw);
+            var first = FirstColumn(groupAvgRaw);
+            var parsed = ParseDecimal((object)first);
             if (parsed.HasValue) groupAvg = parsed.Value;
-            else _logger.LogWarning("ReportService: Failed to parse groupAvg: {Raw}", (object)Convert.ToString(groupAvgRaw, CultureInfo.InvariantCulture));
+            else _logger.LogWarning("ReportService: Failed to parse groupAvg: {Raw}", (object)Convert.ToString(first, CultureInfo.InvariantCulture));
         }
         catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupAvg: {Raw}", (object)groupAvgRaw); }
     }
 
         const string groupMedianSql = @"
-            -- return as text for defensive parsing
-            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_score_total)::text AS MedianGroupVsPar
-            FROM (
-                SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
-                FROM round_scores rs
-                JOIN round_teams rt ON rs.round_team_id = rt.id
-                WHERE rs.round_id = ANY(@RoundIds)
-                GROUP BY rs.round_id, rs.round_team_id
-            ) t;
+            -- compute per-player median across all team-rounds
+            WITH per_round AS (
+                SELECT rp.round_id,
+                       SUM(rs.score) AS team_round_score_total,
+                       COUNT(DISTINCT rp.golfer_id) AS member_count
+                FROM round_participants rp
+                JOIN round_scores rs ON rp.round_id = rs.round_id AND rp.round_team_id = rs.round_team_id
+                WHERE rp.round_id = ANY(@RoundIds)
+                GROUP BY rp.round_id, rp.round_team_id
+            )
+            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY (team_round_score_total::numeric / NULLIF(member_count,0)))::text AS MedianGroupVsPar
+            FROM per_round;
         ";
     var groupMedianRaw = await connection.QuerySingleOrDefaultAsync(groupMedianSql, new { RoundIds = roundIds.ToArray() });
     decimal? groupMedian = null;
@@ -264,9 +271,10 @@ public class ReportService
     {
         try
         {
-            var parsed = ParseDecimal((object)groupMedianRaw);
+            var first = FirstColumn(groupMedianRaw);
+            var parsed = ParseDecimal((object)first);
             if (parsed.HasValue) groupMedian = parsed.Value;
-            else _logger.LogWarning("ReportService: Failed to parse groupMedian: {Raw}", (object)Convert.ToString(groupMedianRaw, CultureInfo.InvariantCulture));
+            else _logger.LogWarning("ReportService: Failed to parse groupMedian: {Raw}", (object)Convert.ToString(first, CultureInfo.InvariantCulture));
         }
         catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupMedian: {Raw}", (object)groupMedianRaw); }
     }
