@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Dapper;
 using Npgsql;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 using TeeTimeTally.Shared.Reports;
 
 namespace TeeTimeTally.API.Services;
@@ -19,6 +20,18 @@ public class ReportService
     {
         _dataSource = dataSource;
         _logger = logger;
+    }
+
+    // Safely parse numeric-like DB output (which may be returned as dynamic) into decimal?
+    private static decimal? ParseDecimal(object? raw)
+    {
+        if (raw == null) return null;
+        // Convert using invariant culture to avoid locale issues
+        var s = Convert.ToString(raw, CultureInfo.InvariantCulture);
+        if (string.IsNullOrWhiteSpace(s)) return null;
+        // Allow exponent notation as well
+        if (decimal.TryParse(s, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var v)) return v;
+        return null;
     }
 
     public async Task<GroupYearEndReportDto> GetGroupYearEndReportAsync(Guid groupId, int year, CancellationToken ct = default)
@@ -71,23 +84,17 @@ public class ReportService
                 var skinsRaw = r.skinswinnings;
                 decimal total = 0m;
                 decimal skins = 0m;
-                if (totalRaw != null)
+                var parsedTotal = ParseDecimal(totalRaw);
+                if (parsedTotal.HasValue) total = parsedTotal.Value;
+                else if (totalRaw != null)
                 {
-                    var totalRawStr = totalRaw.ToString();
-                    if (!decimal.TryParse(totalRawStr, out total))
-                    {
-                        _logger.LogWarning("ReportService: Failed to parse total winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)totalRawStr);
-                        total = 0m;
-                    }
+                    _logger.LogWarning("ReportService: Failed to parse total winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)Convert.ToString(totalRaw, CultureInfo.InvariantCulture));
                 }
-                if (skinsRaw != null)
+                var parsedSkins = ParseDecimal(skinsRaw);
+                if (parsedSkins.HasValue) skins = parsedSkins.Value;
+                else if (skinsRaw != null)
                 {
-                    var skinsRawStr = skinsRaw.ToString();
-                    if (!decimal.TryParse(skinsRawStr, out skins))
-                    {
-                        _logger.LogWarning("ReportService: Failed to parse skins winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)skinsRawStr);
-                        skins = 0m;
-                    }
+                    _logger.LogWarning("ReportService: Failed to parse skins winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)Convert.ToString(skinsRaw, CultureInfo.InvariantCulture));
                 }
                 payouts[gid] = (Total: total, Skins: skins);
             }
@@ -132,8 +139,9 @@ public class ReportService
                 decimal val = 0m;
                 if (r.avgvsparperround != null)
                 {
-                    decimal parsed;
-                    if (decimal.TryParse(r.avgvsparperround.ToString(), out parsed)) val = parsed;
+                    var parsed = ParseDecimal(r.avgvsparperround);
+                    if (parsed.HasValue) val = parsed.Value;
+                    else _logger.LogWarning("ReportService: Failed to parse AvgVsParPerRound for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)Convert.ToString(r.avgvsparperround, CultureInfo.InvariantCulture));
                 }
                 vsPars[gid] = val;
             }
@@ -176,8 +184,9 @@ public class ReportService
                 decimal? val = null;
                 if (r.medianvsparperround != null)
                 {
-                    decimal parsed;
-                    if (decimal.TryParse(r.medianvsparperround.ToString(), out parsed)) val = parsed;
+                    var parsed = ParseDecimal(r.medianvsparperround);
+                    if (parsed.HasValue) val = parsed.Value;
+                    else _logger.LogWarning("ReportService: Failed to parse MedianVsParPerRound for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)Convert.ToString(r.medianvsparperround, CultureInfo.InvariantCulture));
                 }
                 vsParsMedian[gid] = val;
             }
@@ -210,7 +219,12 @@ public class ReportService
     decimal? groupAvg = null;
     if (groupAvgRaw != null)
     {
-        try { if (decimal.TryParse(groupAvgRaw.ToString(), out decimal gAvgParsed)) groupAvg = gAvgParsed; }
+        try
+        {
+            var parsed = ParseDecimal(groupAvgRaw);
+            if (parsed.HasValue) groupAvg = parsed.Value;
+            else _logger.LogWarning("ReportService: Failed to parse groupAvg: {Raw}", (object)Convert.ToString(groupAvgRaw, CultureInfo.InvariantCulture));
+        }
         catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupAvg: {Raw}", (object)groupAvgRaw); }
     }
 
@@ -229,7 +243,12 @@ public class ReportService
     decimal? groupMedian = null;
     if (groupMedianRaw != null)
     {
-        try { if (decimal.TryParse(groupMedianRaw.ToString(), out decimal gMedParsed)) groupMedian = gMedParsed; }
+        try
+        {
+            var parsed = ParseDecimal(groupMedianRaw);
+            if (parsed.HasValue) groupMedian = parsed.Value;
+            else _logger.LogWarning("ReportService: Failed to parse groupMedian: {Raw}", (object)Convert.ToString(groupMedianRaw, CultureInfo.InvariantCulture));
+        }
         catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupMedian: {Raw}", (object)groupMedianRaw); }
     }
 
@@ -244,11 +263,8 @@ public class ReportService
         decimal maxPot = 0m;
         try
         {
-            if (pot.totalpotsum != null)
-            {
-                decimal tp;
-                if (decimal.TryParse(pot.totalpotsum.ToString(), out tp)) totalPot = Math.Round(tp, 2);
-            }
+            var parsedTp = ParseDecimal(pot.totalpotsum);
+            if (parsedTp.HasValue) totalPot = Math.Round(parsedTp.Value, 2);
         }
         catch (Exception ex)
         {
@@ -256,11 +272,8 @@ public class ReportService
         }
         try
         {
-            if (pot.maxpot != null)
-            {
-                decimal mp;
-                if (decimal.TryParse(pot.maxpot.ToString(), out mp)) maxPot = Math.Round(mp, 2);
-            }
+            var parsedMp = ParseDecimal(pot.maxpot);
+            if (parsedMp.HasValue) maxPot = Math.Round(parsedMp.Value, 2);
         }
         catch (Exception ex)
         {
@@ -325,7 +338,7 @@ public class ReportService
         GROUP BY rt.id, rt.team_name_or_number
         ORDER BY AvgScorePerRound ASC;";
     var teamsScoresRaw = (await connection.QueryAsync(teamsScoresSql, new { RoundIds = roundIds.ToArray() })).ToList();
-    var teamsScores = new List<dynamic>();
+    var teamsScores = new List<(Guid TeamId, string TeamName, decimal? AvgScore, decimal? BestRound)>();
     foreach (var r in teamsScoresRaw)
     {
         try
@@ -336,15 +349,17 @@ public class ReportService
             decimal? best = null;
             if (r.avgscoreperround != null)
             {
-                decimal a;
-                if (decimal.TryParse(r.avgscoreperround.ToString(), out a)) avg = Math.Round(a, 2);
+                var parsed = ParseDecimal(r.avgscoreperround);
+                if (parsed.HasValue) avg = Math.Round(parsed.Value, 2);
+                else _logger.LogWarning("ReportService: Failed to parse AvgScorePerRound for team {TeamId}. Raw: {Raw}", (object)tid, (object)Convert.ToString(r.avgscoreperround, CultureInfo.InvariantCulture));
             }
             if (r.bestroundscore != null)
             {
-                decimal b;
-                if (decimal.TryParse(r.bestroundscore.ToString(), out b)) best = Math.Round(b, 2);
+                var parsed = ParseDecimal(r.bestroundscore);
+                if (parsed.HasValue) best = Math.Round(parsed.Value, 2);
+                else _logger.LogWarning("ReportService: Failed to parse BestRoundScore for team {TeamId}. Raw: {Raw}", (object)tid, (object)Convert.ToString(r.bestroundscore, CultureInfo.InvariantCulture));
             }
-            teamsScores.Add(new { TeamId = tid, TeamName = tname, AvgScore = avg, BestRound = best });
+            teamsScores.Add((TeamId: tid, TeamName: tname, AvgScore: avg, BestRound: best));
         }
         catch (Exception ex)
         {
