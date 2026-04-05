@@ -85,8 +85,8 @@ function formatNullableNumber(value?: number | null) {
             <ReportTableHeader label="Times Played" sortKey="timesPlayed" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-winnings" />
-            <ReportTableHeader label="Skins Net" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-skins-net" />
-            <ReportTableHeader label="Skins Net / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Skins" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-skins-net" />
+            <ReportTableHeader label="Skins / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Avg score/round" sortKey="avg" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-median" />
           </tr>
@@ -114,10 +114,6 @@ function formatNullableNumber(value?: number | null) {
               <h5 class="mb-2">Top Players <span class="badge bg-warning text-dark">🏆</span></h5>
               <p class="mb-1"><strong>Best (Avg):</strong>
                 <span v-if="report.bestPlayerByAvgVsPar">{{ report.bestPlayerByAvgVsPar.fullName + ' — ' + formatNullableNumber(report.bestPlayerByAvgVsPar.avgVsParPerRound) }}</span>
-                <span v-else>No eligible players (minimum 3 rounds)</span>
-              </p>
-              <p class="mb-1"><strong>Best (Median):</strong>
-                <span v-if="report.bestPlayerByMedian">{{ report.bestPlayerByMedian.fullName + ' — ' + formatNullableNumber(report.bestPlayerByMedian.medianVsParPerRound) }}</span>
                 <span v-else>No eligible players (minimum 3 rounds)</span>
               </p>
               <p class="mb-0"><strong>Most Closest to the Pins:</strong> {{ report.bestPlayerByCth ? report.bestPlayerByCth.fullName + ' — ' + (report.bestPlayerByCth.closestToHoleCount ?? 0) + ' CTH' : '—' }}</p>
