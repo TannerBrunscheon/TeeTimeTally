@@ -18,10 +18,20 @@ public record GroupYearSummaryDto(
     decimal MaxPot
 );
 
+public record TeamYearStatsDto(
+    Guid TeamId,
+    string TeamName,
+    decimal? AvgScorePerRound,
+    decimal? BestRoundScore
+);
+
 public record GroupYearEndReportDto(
     Guid GroupId,
     int Year,
     List<PlayerYearStatsDto> Players,
     PlayerYearStatsDto? BestPlayerByAvgVsPar,
+    PlayerYearStatsDto? BestPlayerByMedian,
+    TeamYearStatsDto? BestTeamByAvg,
+    TeamYearStatsDto? BestTeamBestRound,
     GroupYearSummaryDto GroupSummary
 );

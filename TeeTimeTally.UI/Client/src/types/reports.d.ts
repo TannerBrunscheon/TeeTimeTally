@@ -3,17 +3,24 @@ export interface PlayerYearStatsDto {
   fullName: string;
   timesPlayed: number;
   netWinnings: number;
-  avgVsParPerRound: number;
-  medianVsParPerRound: number;
+  avgVsParPerRound?: number | null;
+  medianVsParPerRound?: number | null;
 }
 
 export interface GroupYearSummaryDto {
   groupId: string;
   roundsCount: number;
-  avgGroupVsPar: number;
-  medianGroupVsPar: number;
+  avgGroupVsPar?: number | null;
+  medianGroupVsPar?: number | null;
   totalPotSum: number;
   maxPot: number;
+}
+
+export interface TeamYearStatsDto {
+  teamId: string;
+  teamName: string;
+  avgScorePerRound?: number | null;
+  bestRoundScore?: number | null;
 }
 
 export interface GroupYearEndReportDto {
@@ -21,5 +28,8 @@ export interface GroupYearEndReportDto {
   year: number;
   players: PlayerYearStatsDto[];
   bestPlayerByAvgVsPar?: PlayerYearStatsDto;
+  bestPlayerByMedian?: PlayerYearStatsDto;
+  bestTeamByAvg?: TeamYearStatsDto;
+  bestTeamBestRound?: TeamYearStatsDto;
   groupSummary: GroupYearSummaryDto;
 }

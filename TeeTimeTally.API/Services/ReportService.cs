@@ -25,7 +25,8 @@ public class ReportService
 
         if (!roundIds.Any())
         {
-            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m));
+            var emptySummary = new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m);
+            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, emptySummary);
         }
         const string playersSql = @"
             SELECT p.golfer_id AS GolferId, g.full_name AS FullName, COUNT(DISTINCT p.round_id) AS TimesPlayed
@@ -142,12 +143,53 @@ public class ReportService
 
     var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
     var bestPlayer = playersList.OrderBy(p => p.AvgVsParPerRound ?? decimal.MaxValue).FirstOrDefault();
+    var bestPlayerByMedian = playersList.OrderBy(p => p.MedianVsParPerRound ?? decimal.MaxValue).FirstOrDefault();
+
+    // Team-level stats: compute per-team average and best single-round score
+    const string bestTeamByAvgSql = @"
+        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, AVG(t.team_round_score_total)::numeric AS AvgScorePerRound, MIN(t.team_round_score_total)::numeric AS BestRoundScore
+        FROM (
+            SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
+            FROM round_scores rs
+            WHERE rs.round_id = ANY(@RoundIds)
+            GROUP BY rs.round_id, rs.round_team_id
+        ) t
+        JOIN round_teams rt ON rt.id = t.round_team_id
+        GROUP BY rt.id, rt.team_name_or_number
+        ORDER BY AvgScorePerRound ASC
+        LIMIT 1;";
+    var bestTeamByAvgRow = await connection.QueryFirstOrDefaultAsync(bestTeamByAvgSql, new { RoundIds = roundIds.ToArray() });
+
+    const string bestTeamBestRoundSql = @"
+        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, AVG(t.team_round_score_total)::numeric AS AvgScorePerRound, MIN(t.team_round_score_total)::numeric AS BestRoundScore
+        FROM (
+            SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
+            FROM round_scores rs
+            WHERE rs.round_id = ANY(@RoundIds)
+            GROUP BY rs.round_id, rs.round_team_id
+        ) t
+        JOIN round_teams rt ON rt.id = t.round_team_id
+        GROUP BY rt.id, rt.team_name_or_number
+        ORDER BY BestRoundScore ASC
+        LIMIT 1;";
+    var bestTeamBestRoundRow = await connection.QueryFirstOrDefaultAsync(bestTeamBestRoundSql, new { RoundIds = roundIds.ToArray() });
+
+    TeamYearStatsDto? bestTeamByAvg = null;
+    TeamYearStatsDto? bestTeamBestRound = null;
+    if (bestTeamByAvgRow != null)
+    {
+        bestTeamByAvg = new TeamYearStatsDto((Guid)bestTeamByAvgRow.teamid, (string)bestTeamByAvgRow.teamname, (bestTeamByAvgRow.avgscoreperround is decimal da) ? Math.Round(da, 2) : null, (bestTeamByAvgRow.bestroundscore is decimal db) ? Math.Round(db, 2) : null);
+    }
+    if (bestTeamBestRoundRow != null)
+    {
+        bestTeamBestRound = new TeamYearStatsDto((Guid)bestTeamBestRoundRow.teamid, (string)bestTeamBestRoundRow.teamname, (bestTeamBestRoundRow.avgscoreperround is decimal dc) ? Math.Round(dc, 2) : null, (bestTeamBestRoundRow.bestroundscore is decimal dd) ? Math.Round(dd, 2) : null);
+    }
 
     decimal? roundedGroupAvg = groupAvg.HasValue ? Math.Round(groupAvg.Value, 2) : null;
     decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
 
     var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
-        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, summary);
+        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestTeamByAvg, bestTeamBestRound, summary);
     }
 
     public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)
