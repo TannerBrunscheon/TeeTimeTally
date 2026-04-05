@@ -356,15 +356,16 @@ public class ReportService
         WITH per_round AS (
             SELECT rp.round_id,
                    string_agg(rp.golfer_id::text, ',' ORDER BY rp.golfer_id) AS composition_key,
-                   SUM(rs.score) AS team_round_score_total
+                   SUM(rs.score) AS team_round_score_total,
+                   COUNT(DISTINCT rp.golfer_id) AS member_count
             FROM round_participants rp
             JOIN round_scores rs ON rp.round_id = rs.round_id AND rp.round_team_id = rs.round_team_id
             WHERE rp.round_id = ANY(@RoundIds)
             GROUP BY rp.round_id, rp.round_team_id
         )
         SELECT composition_key,
-               AVG(team_round_score_total)::text AS AvgScorePerRound,
-               MIN(team_round_score_total)::text AS BestRoundScore,
+               AVG((team_round_score_total::numeric / NULLIF(member_count,0)))::text AS AvgScorePerRound,
+               MIN((team_round_score_total::numeric / NULLIF(member_count,0)))::text AS BestRoundScore,
                COUNT(*)::int AS RoundsCount
         FROM per_round
         GROUP BY composition_key
