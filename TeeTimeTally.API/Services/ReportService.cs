@@ -51,9 +51,10 @@ public class ReportService
         // both TotalWinnings and SkinsWinnings. This avoids double-counting skins when
         // a team has multiple members (round_scores.skin_value_won stores the team amount).
         const string payoutsSql = @"
+            -- cast numeric to text to avoid Npgsql numeric->Decimal conversion during mapping
             SELECT golfer_id AS GolferId,
-                   SUM(total_winnings)::numeric AS TotalWinnings,
-                   SUM((breakdown::jsonb ->> 'SkinsWinnings')::numeric)::numeric AS SkinsWinnings
+                   SUM(total_winnings)::text AS TotalWinnings,
+                   SUM((breakdown::jsonb ->> 'SkinsWinnings')::numeric)::text AS SkinsWinnings
             FROM round_payout_summary
             WHERE round_id = ANY(@RoundIds)
             GROUP BY golfer_id;
@@ -108,7 +109,8 @@ public class ReportService
         // over total round scores (lower is better). These populate the same DTO
         // fields previously named 'vs par' so UI continues to work without DB schema changes.
         const string vsParSql = @"
-            SELECT t.golfer_id AS GolferId, AVG(player_round_score_total)::numeric AS AvgVsParPerRound
+            -- return as text for defensive parsing
+            SELECT t.golfer_id AS GolferId, AVG(player_round_score_total)::text AS AvgVsParPerRound
             FROM (
                 SELECT rp.golfer_id, rs.round_id,
                        SUM(rs.score) AS player_round_score_total
@@ -149,9 +151,10 @@ public class ReportService
             }
         }
 
-        const string vsParMedianSql = @"
-            SELECT golfer_id AS GolferId,
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY player_round_score_total)::numeric AS MedianVsParPerRound
+     const string vsParMedianSql = @"
+         -- return as text for defensive parsing
+         SELECT golfer_id AS GolferId,
+             percentile_cont(0.5) WITHIN GROUP (ORDER BY player_round_score_total)::text AS MedianVsParPerRound
             FROM (
                 SELECT rp.golfer_id, rs.round_id,
                        SUM(rs.score) AS player_round_score_total
@@ -193,7 +196,8 @@ public class ReportService
         }
 
         const string groupAvgSql = @"
-            SELECT AVG(team_round_score_total)::numeric AS AvgGroupVsPar
+            -- return as text for defensive parsing
+            SELECT AVG(team_round_score_total)::text AS AvgGroupVsPar
             FROM (
                 SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
                 FROM round_scores rs
@@ -211,7 +215,8 @@ public class ReportService
     }
 
         const string groupMedianSql = @"
-            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_score_total)::numeric AS MedianGroupVsPar
+            -- return as text for defensive parsing
+            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_score_total)::text AS MedianGroupVsPar
             FROM (
                 SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
                 FROM round_scores rs
@@ -229,7 +234,8 @@ public class ReportService
     }
 
         const string potSql = @"
-            SELECT COALESCE(SUM(total_pot),0)::numeric AS TotalPotSum, COALESCE(MAX(total_pot),0)::numeric AS MaxPot
+            -- return pot values as text for defensive parsing
+            SELECT COALESCE(SUM(total_pot),0)::text AS TotalPotSum, COALESCE(MAX(total_pot),0)::text AS MaxPot
             FROM rounds
             WHERE id = ANY(@RoundIds);
         ";
@@ -307,7 +313,8 @@ public class ReportService
     // Team-level stats: compute per-team average and best single-round score
     // Gather per-team scores so we can surface all tied-best teams (by avg or by best single round)
     const string teamsScoresSql = @"
-        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, AVG(t.team_round_score_total)::numeric AS AvgScorePerRound, MIN(t.team_round_score_total)::numeric AS BestRoundScore
+        -- return numeric aggregates as text for defensive parsing
+        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, AVG(t.team_round_score_total)::text AS AvgScorePerRound, MIN(t.team_round_score_total)::text AS BestRoundScore
         FROM (
             SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
             FROM round_scores rs
