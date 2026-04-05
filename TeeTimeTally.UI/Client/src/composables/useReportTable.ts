@@ -16,11 +16,8 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
   }
 
   function displayedNet(p: any) {
-    // Skins Net: skins winnings minus contributed buy-ins
-    const buyIn = group.value?.activeFinancialConfiguration?.buyInAmount ?? 0;
-    const contributed = (p.timesPlayed ?? 0) * buyIn;
-    const net = (p.skinsWinnings ?? 0) - contributed;
-    return net;
+    // Skins Net: show skins winnings only (do not subtract buy-ins)
+    return (p.skinsWinnings ?? 0);
   }
 
   function displayedNetPerRound(p: any) {
