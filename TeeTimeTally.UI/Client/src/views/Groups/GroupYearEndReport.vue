@@ -85,7 +85,7 @@ function formatNullableNumber(value?: number | null) {
           <tr>
             <ReportTableHeader label="Player" sortKey="fullName" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Times Played" sortKey="timesPlayed" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <th class="align-middle"><span class="small text-muted">Wins</span></th>
+            <ReportTableHeader label="Wins" sortKey="wins" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-winnings" />
             <ReportTableHeader label="Skins" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-skins-net" />

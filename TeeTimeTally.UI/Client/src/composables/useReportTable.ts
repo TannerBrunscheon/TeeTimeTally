@@ -34,6 +34,7 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
       switch (sortBy.value) {
         case 'fullName': return a.fullName.localeCompare(b.fullName) * dir;
         case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
+        case 'wins': return ((a.wins ?? 0) - (b.wins ?? 0)) * dir;
         case 'cth': return ((a.closestToHoleCount ?? 0) - (b.closestToHoleCount ?? 0)) * dir;
   case 'winnings': return ((a.totalWinnings ?? 0) - (b.totalWinnings ?? 0)) * dir;
   case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
