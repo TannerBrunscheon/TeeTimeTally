@@ -65,6 +65,7 @@ function formatNullableNumber(value?: number | null) {
       <div v-else>No report available.</div>
     </div>
     <div v-if="report">
+      
   <h4 class="mt-4">Players</h4>
       <table class="table table-striped table-hover">
         <thead>
