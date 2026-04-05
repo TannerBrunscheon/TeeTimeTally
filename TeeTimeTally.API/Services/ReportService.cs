@@ -7,6 +7,8 @@ using Dapper;
 using Npgsql;
 using Microsoft.Extensions.Logging;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using TeeTimeTally.Shared.Reports;
 
 namespace TeeTimeTally.API.Services;
@@ -32,6 +34,23 @@ public class ReportService
         // Allow exponent notation as well
         if (decimal.TryParse(s, NumberStyles.Number | NumberStyles.AllowExponent, CultureInfo.InvariantCulture, out var v)) return v;
         return null;
+    }
+
+    // For QuerySingleOrDefaultAsync that returns a row with a single column, extract that first column value
+    private static object? FirstColumn(object? row)
+    {
+        if (row == null) return null;
+        if (row is IDictionary<string, object> dict) return dict.Values.FirstOrDefault();
+        return row;
+    }
+
+    // Create a stable Guid from a string (MD5 hash -> Guid)
+    private static Guid GuidFromString(string s)
+    {
+        using var md5 = MD5.Create();
+        var bytes = Encoding.UTF8.GetBytes(s);
+        var hash = md5.ComputeHash(bytes);
+        return new Guid(hash);
     }
 
     public async Task<GroupYearEndReportDto> GetGroupYearEndReportAsync(Guid groupId, int year, CancellationToken ct = default)
@@ -323,43 +342,49 @@ public class ReportService
         players.TryGetValue(bestCthId, out bestPlayerByCth);
     }
 
-    // Team-level stats: compute per-team average and best single-round score
-    // Gather per-team scores so we can surface all tied-best teams (by avg or by best single round)
+    // Team-level stats: compute per-composition (by golfer ids) averages and best single-round
+    // We group by the canonical composition key (sorted golfer ids) so the same pairing across rounds is treated as one team
     const string teamsScoresSql = @"
-        -- return numeric aggregates as text for defensive parsing
-        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, AVG(t.team_round_score_total)::text AS AvgScorePerRound, MIN(t.team_round_score_total)::text AS BestRoundScore
-        FROM (
-            SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
-            FROM round_scores rs
-            WHERE rs.round_id = ANY(@RoundIds)
-            GROUP BY rs.round_id, rs.round_team_id
-        ) t
-        JOIN round_teams rt ON rt.id = t.round_team_id
-        GROUP BY rt.id, rt.team_name_or_number
-        ORDER BY AvgScorePerRound ASC;";
+        WITH per_round AS (
+            SELECT rp.round_id,
+                   string_agg(rp.golfer_id::text, ',' ORDER BY rp.golfer_id) AS composition_key,
+                   SUM(rs.score) AS team_round_score_total
+            FROM round_participants rp
+            JOIN round_scores rs ON rp.round_id = rs.round_id AND rp.round_team_id = rs.round_team_id
+            WHERE rp.round_id = ANY(@RoundIds)
+            GROUP BY rp.round_id, rp.round_team_id
+        )
+        SELECT composition_key,
+               AVG(team_round_score_total)::text AS AvgScorePerRound,
+               MIN(team_round_score_total)::text AS BestRoundScore,
+               COUNT(*)::int AS RoundsCount
+        FROM per_round
+        GROUP BY composition_key
+        ORDER BY RoundsCount DESC, AvgScorePerRound ASC;
+    ";
     var teamsScoresRaw = (await connection.QueryAsync(teamsScoresSql, new { RoundIds = roundIds.ToArray() })).ToList();
-    var teamsScores = new List<(Guid TeamId, string TeamName, decimal? AvgScore, decimal? BestRound)>();
+    var teamsScores = new List<(string CompositionKey, decimal? AvgScore, decimal? BestRound, int RoundsCount)>();
     foreach (var r in teamsScoresRaw)
     {
         try
         {
-            var tid = (Guid)r.teamid;
-            var tname = (string)r.teamname;
+            var key = (string)r.composition_key;
             decimal? avg = null;
             decimal? best = null;
             if (r.avgscoreperround != null)
             {
                 var parsed = ParseDecimal((object)r.avgscoreperround);
                 if (parsed.HasValue) avg = Math.Round(parsed.Value, 2);
-                else _logger.LogWarning("ReportService: Failed to parse AvgScorePerRound for team {TeamId}. Raw: {Raw}", (object)tid, (object)Convert.ToString(r.avgscoreperround, CultureInfo.InvariantCulture));
+                else _logger.LogWarning("ReportService: Failed to parse AvgScorePerRound for composition {Comp}. Raw: {Raw}", (object)key, (object)Convert.ToString(r.avgscoreperround, CultureInfo.InvariantCulture));
             }
             if (r.bestroundscore != null)
             {
                 var parsed = ParseDecimal((object)r.bestroundscore);
                 if (parsed.HasValue) best = Math.Round(parsed.Value, 2);
-                else _logger.LogWarning("ReportService: Failed to parse BestRoundScore for team {TeamId}. Raw: {Raw}", (object)tid, (object)Convert.ToString(r.bestroundscore, CultureInfo.InvariantCulture));
+                else _logger.LogWarning("ReportService: Failed to parse BestRoundScore for composition {Comp}. Raw: {Raw}", (object)key, (object)Convert.ToString(r.bestroundscore, CultureInfo.InvariantCulture));
             }
-            teamsScores.Add((TeamId: tid, TeamName: tname, AvgScore: avg, BestRound: best));
+            var roundsCount = (int)r.roundscount;
+            teamsScores.Add((CompositionKey: key, AvgScore: avg, BestRound: best, RoundsCount: roundsCount));
         }
         catch (Exception ex)
         {
@@ -382,22 +407,17 @@ public class ReportService
             bestTeamsByAvg = new List<TeamYearStatsDto>();
             foreach (var w in winners)
             {
+                // members by composition key
                 const string teamMembersSql = @"
-                    SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
-                    FROM round_participants rp
-                    JOIN golfers g ON rp.golfer_id = g.id
-                    WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
-                    ORDER BY g.full_name;
+                    SELECT id AS GolferId, full_name AS FullName
+                    FROM golfers
+                    WHERE id = ANY(string_to_array(@Comp, ',')::uuid[])
+                    ORDER BY full_name;
                 ";
-                var members = (await connection.QueryAsync(teamMembersSql, new { TeamId = w.TeamId, RoundIds = roundIds.ToArray() }))
+                var members = (await connection.QueryAsync(teamMembersSql, new { Comp = w.CompositionKey }))
                     .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
 
-                const string teamRoundsSql = @"
-                    SELECT COUNT(DISTINCT rp.round_id)::int FROM round_participants rp WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds);
-                ";
-                var roundsCount = await connection.QuerySingleAsync<int>(teamRoundsSql, new { TeamId = w.TeamId, RoundIds = roundIds.ToArray() });
-
-                var dto = new TeamYearStatsDto(w.TeamId, w.TeamName, w.AvgScore, w.BestRound, members, roundsCount);
+                var dto = new TeamYearStatsDto(GuidFromString(w.CompositionKey), string.Join(", ", members.Select(m => m.FullName)), w.AvgScore, w.BestRound, members, w.RoundsCount);
                 bestTeamsByAvg.Add(dto);
             }
             if (bestTeamsByAvg.Any()) bestTeamByAvg = bestTeamsByAvg.First();
@@ -412,65 +432,39 @@ public class ReportService
             foreach (var w in winners)
             {
                 const string teamMembersSql = @"
-                    SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
-                    FROM round_participants rp
-                    JOIN golfers g ON rp.golfer_id = g.id
-                    WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
-                    ORDER BY g.full_name;
+                    SELECT id AS GolferId, full_name AS FullName
+                    FROM golfers
+                    WHERE id = ANY(string_to_array(@Comp, ',')::uuid[])
+                    ORDER BY full_name;
                 ";
-                var members = (await connection.QueryAsync(teamMembersSql, new { TeamId = w.TeamId, RoundIds = roundIds.ToArray() }))
+                var members = (await connection.QueryAsync(teamMembersSql, new { Comp = w.CompositionKey }))
                     .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
 
-                const string teamRoundsSql = @"
-                    SELECT COUNT(DISTINCT rp.round_id)::int FROM round_participants rp WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds);
-                ";
-                var roundsCount = await connection.QuerySingleAsync<int>(teamRoundsSql, new { TeamId = w.TeamId, RoundIds = roundIds.ToArray() });
-
-                var dto = new TeamYearStatsDto(w.TeamId, w.TeamName, w.AvgScore, w.BestRound, members, roundsCount);
+                var dto = new TeamYearStatsDto(GuidFromString(w.CompositionKey), string.Join(", ", members.Select(m => m.FullName)), w.AvgScore, w.BestRound, members, w.RoundsCount);
                 bestTeamsByBestRound.Add(dto);
             }
             if (bestTeamsByBestRound.Any()) bestTeamBestRound = bestTeamsByBestRound.First();
         }
     }
 
-    // Compute most-played-together teams (by rounds count). If tied, include all.
-    const string teamsByRoundsSql = @"
-        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, COUNT(DISTINCT rp.round_id)::int AS RoundsCount
-        FROM round_participants rp
-        JOIN round_teams rt ON rp.round_team_id = rt.id
-        WHERE rp.round_id = ANY(@RoundIds)
-        GROUP BY rt.id, rt.team_name_or_number
-        ORDER BY RoundsCount DESC;
-    ";
-    var teamsByRounds = (await connection.QueryAsync(teamsByRoundsSql, new { RoundIds = roundIds.ToArray() }))
-        .Select(r => new { TeamId = (Guid)r.teamid, TeamName = (string)r.teamname, RoundsCount = (int)r.roundscount })
-        .ToList();
-
+    // Compute most-played-together teams (by rounds count) using composition grouping we just produced.
     List<MostPlayedTeamDto>? mostPlayedTeams = null;
-    if (teamsByRounds.Any())
+    if (teamsScores.Any())
     {
-        var topCount = teamsByRounds.Max(t => t.RoundsCount);
-        var topTeams = teamsByRounds.Where(t => t.RoundsCount == topCount).ToList();
+        var topCount = teamsScores.Max(t => t.RoundsCount);
+        var topComps = teamsScores.Where(t => t.RoundsCount == topCount).ToList();
         mostPlayedTeams = new List<MostPlayedTeamDto>();
-        var seenCompositions = new HashSet<string>();
-        foreach (var t in topTeams)
+        foreach (var comp in topComps)
         {
             const string teamMembersSql2 = @"
-                SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
-                FROM round_participants rp
-                JOIN golfers g ON rp.golfer_id = g.id
-                WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
-                ORDER BY g.full_name;
+                SELECT id AS GolferId, full_name AS FullName
+                FROM golfers
+                WHERE id = ANY(string_to_array(@Comp, ',')::uuid[])
+                ORDER BY full_name;
             ";
-            var members = (await connection.QueryAsync(teamMembersSql2, new { TeamId = t.TeamId, RoundIds = roundIds.ToArray() }))
+            var members = (await connection.QueryAsync(teamMembersSql2, new { Comp = comp.CompositionKey }))
                 .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
-
-            // Create a canonical key based on sorted golfer ids to dedupe compositions
-            var key = string.Join(',', members.Select(m => m.GolferId).OrderBy(id => id));
-            if (seenCompositions.Contains(key)) continue;
-            seenCompositions.Add(key);
-
-            mostPlayedTeams.Add(new MostPlayedTeamDto(members, t.RoundsCount));
+            mostPlayedTeams.Add(new MostPlayedTeamDto(members, comp.RoundsCount));
         }
     }
 
