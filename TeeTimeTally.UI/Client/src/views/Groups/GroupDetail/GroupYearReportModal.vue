@@ -20,6 +20,31 @@ const selectedYear = computed(() => props.year ?? new Date().getFullYear());
 const year = selectedYear.value;
 
 const group = ref<any | null>(null);
+const sortBy = ref<string>('timesPlayed');
+const sortDir = ref<'asc'|'desc'>('desc');
+
+const sortedPlayers = computed(() => {
+  if (!report.value) return [] as GroupYearEndReportDto['players'];
+  const arr = [...report.value.players];
+  const dir = sortDir.value === 'asc' ? 1 : -1;
+  arr.sort((a: any, b: any) => {
+    switch (sortBy.value) {
+      case 'fullName': return a.fullName.localeCompare(b.fullName) * dir;
+      case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
+      case 'winnings': return ((a.netWinnings ?? 0) - (b.netWinnings ?? 0)) * dir;
+      case 'net': return ((a.netWinnings ?? 0) - ((a.timesPlayed ?? 0) * (group.value?.activeFinancialConfiguration?.buyInAmount ?? 0))) - ((b.netWinnings ?? 0) - ((b.timesPlayed ?? 0) * (group.value?.activeFinancialConfiguration?.buyInAmount ?? 0))) * dir;
+      case 'avg': return ((a.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
+      case 'median': return ((a.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
+      default: return 0;
+    }
+  });
+  return arr;
+});
+
+function toggleSort(key: string) {
+  if (sortBy.value === key) sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
+  else { sortBy.value = key; sortDir.value = 'desc'; }
+}
 
 function formatCurrency(value: number | null | undefined) {
   if (value === null || value === undefined) return '—';
@@ -99,17 +124,19 @@ function viewFullReport() {
               <table class="table table-sm table-striped">
                 <thead>
                   <tr>
-                    <th>Player</th>
-                    <th>Times Played</th>
-                    <th>Net</th>
-                    <th>Avg score/round</th>
-                    <th>Median score/round</th>
+                    <th @click="toggleSort('fullName')" style="cursor:pointer">Player</th>
+                    <th @click="toggleSort('timesPlayed')" style="cursor:pointer">Times Played</th>
+                    <th @click="toggleSort('winnings')" style="cursor:pointer">Winnings</th>
+                    <th @click="toggleSort('net')" style="cursor:pointer">Net</th>
+                    <th @click="toggleSort('avg')" style="cursor:pointer">Avg score/round</th>
+                    <th @click="toggleSort('median')" style="cursor:pointer">Median score/round</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="p in report.players" :key="p.golferId">
+                  <tr v-for="p in sortedPlayers" :key="p.golferId">
                     <td>{{ p.fullName }}</td>
                     <td>{{ p.timesPlayed }}</td>
+                    <td>{{ formatCurrency(p.netWinnings) }}</td>
                     <td>{{ formatCurrency(displayedNet(p)) }}</td>
                     <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
                     <td>{{ formatNullableNumber(p.medianVsParPerRound) }}</td>
