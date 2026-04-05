@@ -23,12 +23,18 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 			logger = endpoint.Metadata.GetMetadata<ILogger<ScopeAuthorizationHandler>>();
 		}
 
-		logger?.LogInformation("AuthZ: Handling requirement '{RequirementScope}' for user '{UserName}'.", requirement.Scope, context.User.Identity?.Name ?? "Unknown");
+		// Reduce log verbosity: only emit debug-level details for claims and handling
+		logger?.LogDebug("AuthZ: Handling requirement '{RequirementScope}' for user '{UserName}'.", requirement.Scope, context.User.Identity?.Name ?? "Unknown");
 
-		logger?.LogInformation("AuthZ: Claims for user '{UserName}':", context.User.Identity?.Name ?? "Unknown");
-		foreach (var claim in context.User.Claims)
+		// Detailed claim output is noisy in high-throughput environments (e.g., hosted logs).
+		// Keep the detailed list at Debug level so it can be enabled when troubleshooting.
+		if (logger?.IsEnabled(LogLevel.Debug) == true)
 		{
-			logger?.LogInformation("  Claim: Type='{ClaimType}', Value='{ClaimValue}'", claim.Type, claim.Value);
+			logger.LogDebug("AuthZ: Claims for user '{UserName}':", context.User.Identity?.Name ?? "Unknown");
+			foreach (var claim in context.User.Claims)
+			{
+				logger.LogDebug("  Claim: Type='{ClaimType}', Value='{ClaimValue}'", claim.Type, claim.Value);
+			}
 		}
 
 		// --- THE CRITICAL CHANGE IS HERE ---
@@ -69,15 +75,16 @@ public class ScopeAuthorizationHandler : AuthorizationHandler<ScopeAuthorization
 			}
 		}
 
-		logger?.LogInformation("AuthZ: User has PARSED permissions: [{UserPermissions}]", string.Join(", ", userPermissions));
+		logger?.LogDebug("AuthZ: User has PARSED permissions: [{UserPermissions}]", string.Join(", ", userPermissions));
 
 		if (userPermissions.Contains(requirement.Scope))
 		{
-			logger?.LogInformation("AuthZ: User has required permission '{RequiredScope}'. Succeeded.", requirement.Scope);
+			logger?.LogDebug("AuthZ: User has required permission '{RequiredScope}'. Succeeded.", requirement.Scope);
 			context.Succeed(requirement);
 		}
 		else
 		{
+			// Keep warning for denied authorization, include parsed permissions at warning level
 			logger?.LogWarning("AuthZ: User DOES NOT have required permission '{RequiredScope}'. Failing. User permissions were: [{UserPermissions}]", requirement.Scope, string.Join(", ", userPermissions));
 			context.Fail();
 		}
