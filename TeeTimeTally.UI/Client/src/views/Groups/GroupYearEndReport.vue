@@ -3,6 +3,8 @@ import { ref, onMounted, computed } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGroupsStore } from '@/stores/groups';
 import type { GroupYearEndReportResponse } from '@/models/reports';
+import { useReportTable } from '@/composables/useReportTable';
+import ReportTableHeader from '@/components/ReportTableHeader.vue';
 
 const route = useRoute();
 const groupId = (route.params.groupId ?? '') as string;
@@ -12,8 +14,7 @@ const groupsStore = useGroupsStore();
 const report = ref<GroupYearEndReportResponse | null>(null);
 const isLoading = ref(true);
 const group = ref<any | null>(null);
-const sortBy = ref<string>('timesPlayed');
-const sortDir = ref<'asc' | 'desc'>('desc');
+const { sortBy, sortDir, toggleSort, displayedNet, sortedPlayers } = useReportTable(report, group);
 onMounted(async () => {
   isLoading.value = true;
   const res = await groupsStore.fetchGroupYearEndReport(groupId, year);
@@ -34,40 +35,7 @@ function formatNullableNumber(value?: number | null) {
   return value.toFixed(2);
 }
 
-function displayedNet(p: any) {
-  const buyIn = group.value?.activeFinancialConfiguration?.buyInAmount ?? 0;
-  const contributed = (p.timesPlayed ?? 0) * buyIn;
-  const net = (p.netWinnings ?? 0) - contributed;
-  return net;
-}
-
-const sortedPlayers = computed(() => {
-  if (!report.value) return [] as GroupYearEndReportResponse['players'];
-  const arr = [...report.value.players];
-  const dir = sortDir.value === 'asc' ? 1 : -1;
-  arr.sort((a: any, b: any) => {
-    switch (sortBy.value) {
-      case 'fullName': return a.fullName.localeCompare(b.fullName) * dir;
-      case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
-      case 'winnings': return ((a.netWinnings ?? 0) - (b.netWinnings ?? 0)) * dir;
-  case 'cth': return ((a.closestToHoleCount ?? 0) - (b.closestToHoleCount ?? 0)) * dir;
-      case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
-      case 'avg': return ((a.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
-      case 'median': return ((a.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
-      default: return 0;
-    }
-  });
-  return arr;
-});
-
-function toggleSort(key: string) {
-  if (sortBy.value === key) {
-    sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
-  } else {
-    sortBy.value = key;
-    sortDir.value = 'desc';
-  }
-}
+// Sorting, displayedNet and sortedPlayers are provided by the useReportTable composable
 </script>
 
 <template>
@@ -101,13 +69,13 @@ function toggleSort(key: string) {
       <table class="table table-striped table-hover">
         <thead>
           <tr>
-            <th @click="toggleSort('fullName')" style="cursor:pointer">Player</th>
-            <th @click="toggleSort('timesPlayed')" style="cursor:pointer">Times Played</th>
-            <th @click="toggleSort('cth')" style="cursor:pointer">CTH</th>
-            <th @click="toggleSort('winnings')" style="cursor:pointer">Winnings</th>
-            <th @click="toggleSort('net')" style="cursor:pointer">Net</th>
-            <th @click="toggleSort('avg')" style="cursor:pointer">Avg score/round</th>
-            <th @click="toggleSort('median')" style="cursor:pointer">Median score/round</th>
+            <ReportTableHeader label="Player" sortKey="fullName" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Times Played" sortKey="timesPlayed" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Net" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Avg score/round" sortKey="avg" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
           </tr>
         </thead>
         <tbody>
