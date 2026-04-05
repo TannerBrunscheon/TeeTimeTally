@@ -65,7 +65,7 @@ function formatNullableNumber(value?: number | null) {
       <div v-else>No report available.</div>
     </div>
     <div v-if="report">
-      
+
   <h4 class="mt-4">Players</h4>
       <table class="table table-striped table-hover">
         <thead>
@@ -73,21 +73,21 @@ function formatNullableNumber(value?: number | null) {
             <ReportTableHeader label="Player" sortKey="fullName" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Times Played" sortKey="timesPlayed" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <ReportTableHeader label="Net" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <ReportTableHeader label="Net / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-winnings" />
+            <ReportTableHeader label="Skins Net" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-skins-net" />
+            <ReportTableHeader label="Skins Net / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Avg score/round" sortKey="avg" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-median" />
           </tr>
         </thead>
         <tbody>
           <tr v-for="p in sortedPlayers" :key="p.golferId">
             <td>{{ p.fullName }}</td>
             <td>{{ p.timesPlayed }}</td>
-            <td>{{ p.closestToHoleCount ?? 0 }}</td>
-            <td>{{ formatCurrency(p.netWinnings) }}</td>
-            <td>{{ formatCurrency(displayedNet(p)) }}</td>
-            <td>{{ p.timesPlayed ? formatCurrency(displayedNet(p) / p.timesPlayed) : '—' }}</td>
+            <td class="col-cth">{{ p.closestToHoleCount ?? 0 }}</td>
+            <td class="col-winnings">{{ formatCurrency(p.totalWinnings) }}</td>
+            <td class="col-skins-net">{{ formatCurrency(displayedNet(p)) }}</td>
+            <td class="col-skins-net-per">{{ p.timesPlayed ? formatCurrency(displayedNet(p) / p.timesPlayed) : '—' }}</td>
             <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
             <td>{{ formatNullableNumber(p.medianVsParPerRound) }}</td>
           </tr>
@@ -105,7 +105,14 @@ function formatNullableNumber(value?: number | null) {
           <h5>Top Teams 🏆</h5>
           <p>
             <strong>Best Team (Avg):</strong>
-            <span v-if="report.bestTeamByAvg">
+            <span v-if="report.bestTeamsByAvg && report.bestTeamsByAvg.length">
+              <ul class="mb-0">
+                <li v-for="(t, idx) in report.bestTeamsByAvg" :key="idx">
+                  {{ (t.members || []).map(m=>m.fullName).join(', ') }} — {{ t.roundsPlayedTogether ?? '0' }} games — {{ formatNullableNumber(t.avgScorePerRound) }}
+                </li>
+              </ul>
+            </span>
+            <span v-else-if="report.bestTeamByAvg">
               {{ (report.bestTeamByAvg.members || []).map(m=>m.fullName).join(', ') }}
               — {{ report.bestTeamByAvg.roundsPlayedTogether ?? '0' }} games —
               {{ formatNullableNumber(report.bestTeamByAvg.avgScorePerRound) }}
@@ -114,7 +121,14 @@ function formatNullableNumber(value?: number | null) {
           </p>
           <p>
             <strong>Best Team (Single Round):</strong>
-            <span v-if="report.bestTeamBestRound">
+            <span v-if="report.bestTeamsByBestRound && report.bestTeamsByBestRound.length">
+              <ul class="mb-0">
+                <li v-for="(t, idx) in report.bestTeamsByBestRound" :key="idx">
+                  {{ (t.members || []).map(m=>m.fullName).join(', ') }} — {{ t.roundsPlayedTogether ?? '0' }} games — {{ formatNullableNumber(t.bestRoundScore) }}
+                </li>
+              </ul>
+            </span>
+            <span v-else-if="report.bestTeamBestRound">
               {{ (report.bestTeamBestRound.members || []).map(m=>m.fullName).join(', ') }}
               — {{ report.bestTeamBestRound.roundsPlayedTogether ?? '0' }} games —
               {{ formatNullableNumber(report.bestTeamBestRound.bestRoundScore) }}
@@ -139,3 +153,20 @@ function formatNullableNumber(value?: number | null) {
     
   </div>
 </template>
+
+<style scoped>
+/* Responsive tweaks: hide lower-priority financial columns on small screens */
+@media (max-width: 768px) {
+  /* hide gross winnings and skins net and median columns to keep table readable */
+  th.col-winnings, td.col-winnings,
+  th.col-skins-net, td.col-skins-net,
+  th.col-median, td.col-median {
+    display: none !important;
+  }
+
+  /* tighten padding for table */
+  table.table td, table.table th {
+    padding: 0.35rem 0.5rem;
+  }
+}
+</style>

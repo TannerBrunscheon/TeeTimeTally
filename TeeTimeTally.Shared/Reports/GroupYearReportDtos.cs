@@ -4,7 +4,8 @@ public record PlayerYearStatsDto(
     Guid GolferId,
     string FullName,
     int TimesPlayed,
-    decimal NetWinnings,
+    decimal SkinsWinnings,
+    decimal TotalWinnings,
     decimal? AvgVsParPerRound,
     decimal? MedianVsParPerRound,
     int ClosestToHoleCount
@@ -47,6 +48,8 @@ public record GroupYearEndReportDto(
     PlayerYearStatsDto? BestPlayerByCth,
     TeamYearStatsDto? BestTeamByAvg,
     TeamYearStatsDto? BestTeamBestRound,
+    List<TeamYearStatsDto>? BestTeamsByAvg,
+    List<TeamYearStatsDto>? BestTeamsByBestRound,
     List<MostPlayedTeamDto>? MostPlayedTeams,
     GroupYearSummaryDto GroupSummary
 );

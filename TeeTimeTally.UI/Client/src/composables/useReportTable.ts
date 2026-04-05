@@ -16,9 +16,10 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
   }
 
   function displayedNet(p: any) {
+    // Skins Net: skins winnings minus contributed buy-ins
     const buyIn = group.value?.activeFinancialConfiguration?.buyInAmount ?? 0;
     const contributed = (p.timesPlayed ?? 0) * buyIn;
-    const net = (p.netWinnings ?? 0) - contributed;
+    const net = (p.skinsWinnings ?? 0) - contributed;
     return net;
   }
 
@@ -37,7 +38,7 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
         case 'fullName': return a.fullName.localeCompare(b.fullName) * dir;
         case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
         case 'cth': return ((a.closestToHoleCount ?? 0) - (b.closestToHoleCount ?? 0)) * dir;
-        case 'winnings': return ((a.netWinnings ?? 0) - (b.netWinnings ?? 0)) * dir;
+  case 'winnings': return ((a.totalWinnings ?? 0) - (b.totalWinnings ?? 0)) * dir;
   case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
   case 'netPerRound': return (displayedNetPerRound(a) - displayedNetPerRound(b)) * dir;
         case 'avg': return ((a.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;

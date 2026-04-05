@@ -6,6 +6,7 @@ const props = defineProps<{
   sortBy: string;
   sortDir: 'asc' | 'desc';
   toggleSort: (k: string) => void;
+  cellClass?: string;
 }>();
 
 function onClick() {
@@ -20,6 +21,7 @@ const ariaSort = computed(() => {
 
 <template>
   <th
+    :class="props.cellClass"
     role="button"
     :aria-label="`Sort by ${props.label}`"
     :aria-sort="ariaSort"

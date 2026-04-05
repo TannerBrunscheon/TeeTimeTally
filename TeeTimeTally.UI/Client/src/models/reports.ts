@@ -2,7 +2,8 @@ export interface PlayerYearStats {
   golferId: string;
   fullName: string;
   timesPlayed: number;
-  netWinnings: number;
+  skinsWinnings: number;
+  totalWinnings: number;
   closestToHoleCount?: number;
   avgVsParPerRound?: number | null;
   medianVsParPerRound?: number | null;
@@ -45,6 +46,8 @@ export interface GroupYearEndReportResponse {
   bestPlayerByCth?: PlayerYearStats;
   bestTeamByAvg?: TeamYearStats;
   bestTeamBestRound?: TeamYearStats;
+  bestTeamsByAvg?: TeamYearStats[];
+  bestTeamsByBestRound?: TeamYearStats[];
   mostPlayedTeams?: MostPlayedTeam[];
   groupSummary: GroupYearSummary;
 }
