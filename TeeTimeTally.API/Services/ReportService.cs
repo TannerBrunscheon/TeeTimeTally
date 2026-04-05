@@ -142,8 +142,16 @@ public class ReportService
         decimal maxPot = pot.maxpot is decimal d2 ? Math.Round(d2, 2) : 0m;
 
     var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
-    var bestPlayer = playersList.OrderBy(p => p.AvgVsParPerRound ?? decimal.MaxValue).FirstOrDefault();
-    var bestPlayerByMedian = playersList.OrderBy(p => p.MedianVsParPerRound ?? decimal.MaxValue).FirstOrDefault();
+    // Choose best by average only among players with a computed average
+    var bestPlayer = playersList
+        .Where(p => p.AvgVsParPerRound.HasValue)
+        .OrderBy(p => p.AvgVsParPerRound!.Value)
+        .FirstOrDefault();
+    // Choose best by median only among players with a computed median
+    var bestPlayerByMedian = playersList
+        .Where(p => p.MedianVsParPerRound.HasValue)
+        .OrderBy(p => p.MedianVsParPerRound!.Value)
+        .FirstOrDefault();
 
     // Team-level stats: compute per-team average and best single-round score
     const string bestTeamByAvgSql = @"
