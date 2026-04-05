@@ -31,7 +31,7 @@ public class ReportService
         if (!roundIds.Any())
         {
             var emptySummary = new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m);
-            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, null, emptySummary);
+            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, null, null, emptySummary);
         }
         const string playersSql = @"
             SELECT p.golfer_id AS GolferId, g.full_name AS FullName, COUNT(DISTINCT p.round_id) AS TimesPlayed
@@ -41,7 +41,7 @@ public class ReportService
             GROUP BY p.golfer_id, g.full_name;
         ";
         var players = (await connection.QueryAsync(playersSql, new { RoundIds = roundIds.ToArray() }))
-            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, null, null))
+            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, null, null, 0))
             .ToDictionary(p => p.GolferId);
 
         const string payoutsSql = @"
@@ -148,11 +148,30 @@ public class ReportService
 
     var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
 
+    // Closest-to-the-hole (CTH) counts per golfer
+    const string cthSql = @"
+        SELECT cth_winner_golfer_id AS GolferId, COUNT(*)::int AS CthCount
+        FROM rounds
+        WHERE id = ANY(@RoundIds) AND cth_winner_golfer_id IS NOT NULL
+        GROUP BY cth_winner_golfer_id;
+    ";
+    var cthCounts = (await connection.QueryAsync(cthSql, new { RoundIds = roundIds.ToArray() }))
+        .ToDictionary(r => (Guid)r.golferid, r => (int)r.cthcount);
+
+    foreach (var kv in players.ToList())
+    {
+        if (cthCounts.TryGetValue(kv.Key, out var cth))
+        {
+            players[kv.Key] = kv.Value with { ClosestToHoleCount = cth };
+        }
+    }
+
     // Prefer selecting best players from the computed SQL maps to avoid
     // ordering/assignment timing issues. These maps contain the raw numbers
     // we used to populate the player DTOs above.
     PlayerYearStatsDto? bestPlayer = null;
     PlayerYearStatsDto? bestPlayerByMedian = null;
+    PlayerYearStatsDto? bestPlayerByCth = null;
 
     if (vsPars.Any())
     {
@@ -164,6 +183,12 @@ public class ReportService
     {
         var bestMedianId = vsParsMedian.Where(kv => kv.Value.HasValue).OrderBy(kv => kv.Value!.Value).First().Key;
         players.TryGetValue(bestMedianId, out bestPlayerByMedian);
+    }
+
+    if (cthCounts.Any())
+    {
+        var bestCthId = cthCounts.OrderByDescending(kv => kv.Value).First().Key;
+        players.TryGetValue(bestCthId, out bestPlayerByCth);
     }
 
     // Team-level stats: compute per-team average and best single-round score
@@ -285,7 +310,7 @@ public class ReportService
     decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
 
     var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
-        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestTeamByAvg, bestTeamBestRound, mostPlayedTeams, summary);
+        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestPlayerByCth, bestTeamByAvg, bestTeamBestRound, mostPlayedTeams, summary);
     }
 
     public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)

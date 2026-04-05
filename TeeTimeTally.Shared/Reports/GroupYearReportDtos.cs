@@ -6,7 +6,8 @@ public record PlayerYearStatsDto(
     int TimesPlayed,
     decimal NetWinnings,
     decimal? AvgVsParPerRound,
-    decimal? MedianVsParPerRound
+    decimal? MedianVsParPerRound,
+    int ClosestToHoleCount
 );
 
 public record GroupYearSummaryDto(
@@ -43,6 +44,7 @@ public record GroupYearEndReportDto(
     List<PlayerYearStatsDto> Players,
     PlayerYearStatsDto? BestPlayerByAvgVsPar,
     PlayerYearStatsDto? BestPlayerByMedian,
+    PlayerYearStatsDto? BestPlayerByCth,
     TeamYearStatsDto? BestTeamByAvg,
     TeamYearStatsDto? BestTeamBestRound,
     List<MostPlayedTeamDto>? MostPlayedTeams,

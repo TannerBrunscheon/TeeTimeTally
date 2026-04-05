@@ -3,6 +3,7 @@ export interface PlayerYearStats {
   fullName: string;
   timesPlayed: number;
   netWinnings: number;
+  closestToHoleCount?: number;
   avgVsParPerRound?: number | null;
   medianVsParPerRound?: number | null;
 }
@@ -41,6 +42,7 @@ export interface GroupYearEndReportResponse {
   players: PlayerYearStats[];
   bestPlayerByAvgVsPar?: PlayerYearStats;
   bestPlayerByMedian?: PlayerYearStats;
+  bestPlayerByCth?: PlayerYearStats;
   bestTeamByAvg?: TeamYearStats;
   bestTeamBestRound?: TeamYearStats;
   mostPlayedTeams?: MostPlayedTeam[];

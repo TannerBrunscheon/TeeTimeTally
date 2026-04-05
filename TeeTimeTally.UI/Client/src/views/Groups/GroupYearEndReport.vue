@@ -125,6 +125,7 @@ function toggleSort(key: string) {
           <h5>Top Players 🏆</h5>
           <p><strong>Best (Avg):</strong> {{ report.bestPlayerByAvgVsPar ? report.bestPlayerByAvgVsPar.fullName + ' — ' + formatNullableNumber(report.bestPlayerByAvgVsPar.avgVsParPerRound) : '—' }}</p>
           <p><strong>Best (Median):</strong> {{ report.bestPlayerByMedian ? report.bestPlayerByMedian.fullName + ' — ' + formatNullableNumber(report.bestPlayerByMedian.medianVsParPerRound) : '—' }}</p>
+          <p><strong>Most Closest to the Pins:</strong> {{ report.bestPlayerByCth ? report.bestPlayerByCth.fullName + ' — ' + (report.bestPlayerByCth.closestToHoleCount ?? 0) + ' CTH' : '—' }}</p>
         </div>
         <div class="col-md-6">
           <h5>Top Teams 🏆</h5>
