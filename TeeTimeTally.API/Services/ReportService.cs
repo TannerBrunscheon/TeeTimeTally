@@ -328,20 +328,32 @@ public class ReportService
     // Prefer selecting best players from the computed SQL maps to avoid
     // ordering/assignment timing issues. These maps contain the raw numbers
     // we used to populate the player DTOs above.
+    // Minimum rounds required to be eligible for 'best' awards
+    const int MinRoundsForEligibility = 3;
     PlayerYearStatsDto? bestPlayer = null;
     PlayerYearStatsDto? bestPlayerByMedian = null;
     PlayerYearStatsDto? bestPlayerByCth = null;
 
     if (vsPars.Any())
     {
-        var bestId = vsPars.OrderBy(kv => kv.Value).First().Key;
-        players.TryGetValue(bestId, out bestPlayer);
+        // only consider players who played at least MinRoundsForEligibility rounds
+        var candidateIds = vsPars.Where(kv => players.TryGetValue(kv.Key, out var p) && p.TimesPlayed >= MinRoundsForEligibility).ToList();
+        if (candidateIds.Any())
+        {
+            var bestId = candidateIds.OrderBy(kv => kv.Value).First().Key;
+            players.TryGetValue(bestId, out bestPlayer);
+        }
     }
 
     if (vsParsMedian.Any(kv => kv.Value.HasValue))
     {
-        var bestMedianId = vsParsMedian.Where(kv => kv.Value.HasValue).OrderBy(kv => kv.Value!.Value).First().Key;
-        players.TryGetValue(bestMedianId, out bestPlayerByMedian);
+        // only consider players with enough rounds
+        var medianCandidates = vsParsMedian.Where(kv => kv.Value.HasValue && players.TryGetValue(kv.Key, out var p) && p.TimesPlayed >= MinRoundsForEligibility).ToList();
+        if (medianCandidates.Any())
+        {
+            var bestMedianId = medianCandidates.OrderBy(kv => kv.Value!.Value).First().Key;
+            players.TryGetValue(bestMedianId, out bestPlayerByMedian);
+        }
     }
 
     if (cthCounts.Any())
@@ -408,7 +420,8 @@ public class ReportService
 
     if (teamsScores.Any())
     {
-        var avgCandidates = teamsScores.Where(t => t.AvgScore.HasValue).ToList();
+        // Only consider compositions with at least MinRoundsForEligibility rounds
+        var avgCandidates = teamsScores.Where(t => t.AvgScore.HasValue && t.RoundsCount >= MinRoundsForEligibility).ToList();
         if (avgCandidates.Any())
         {
             var minAvg = avgCandidates.Min(t => t.AvgScore!.Value);
@@ -432,7 +445,8 @@ public class ReportService
             if (bestTeamsByAvg.Any()) bestTeamByAvg = bestTeamsByAvg.First();
         }
 
-        var bestRoundCandidates = teamsScores.Where(t => t.BestRound.HasValue).ToList();
+    // For Best Team (Single Round) we consider all compositions regardless of rounds count
+    var bestRoundCandidates = teamsScores.Where(t => t.BestRound.HasValue).ToList();
         if (bestRoundCandidates.Any())
         {
             var minBestRound = bestRoundCandidates.Min(t => t.BestRound!.Value);

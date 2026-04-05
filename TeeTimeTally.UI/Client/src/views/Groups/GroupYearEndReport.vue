@@ -112,8 +112,14 @@ function formatNullableNumber(value?: number | null) {
           <div class="card accent-card mb-3">
             <div class="card-body">
               <h5 class="mb-2">Top Players <span class="badge bg-warning text-dark">🏆</span></h5>
-              <p class="mb-1"><strong>Best (Avg):</strong> {{ report.bestPlayerByAvgVsPar ? report.bestPlayerByAvgVsPar.fullName + ' — ' + formatNullableNumber(report.bestPlayerByAvgVsPar.avgVsParPerRound) : '—' }}</p>
-              <p class="mb-1"><strong>Best (Median):</strong> {{ report.bestPlayerByMedian ? report.bestPlayerByMedian.fullName + ' — ' + formatNullableNumber(report.bestPlayerByMedian.medianVsParPerRound) : '—' }}</p>
+              <p class="mb-1"><strong>Best (Avg):</strong>
+                <span v-if="report.bestPlayerByAvgVsPar">{{ report.bestPlayerByAvgVsPar.fullName + ' — ' + formatNullableNumber(report.bestPlayerByAvgVsPar.avgVsParPerRound) }}</span>
+                <span v-else>No eligible players (minimum 3 rounds)</span>
+              </p>
+              <p class="mb-1"><strong>Best (Median):</strong>
+                <span v-if="report.bestPlayerByMedian">{{ report.bestPlayerByMedian.fullName + ' — ' + formatNullableNumber(report.bestPlayerByMedian.medianVsParPerRound) }}</span>
+                <span v-else>No eligible players (minimum 3 rounds)</span>
+              </p>
               <p class="mb-0"><strong>Most Closest to the Pins:</strong> {{ report.bestPlayerByCth ? report.bestPlayerByCth.fullName + ' — ' + (report.bestPlayerByCth.closestToHoleCount ?? 0) + ' CTH' : '—' }}</p>
             </div>
           </div>
@@ -136,7 +142,7 @@ function formatNullableNumber(value?: number | null) {
                   — {{ report.bestTeamByAvg.roundsPlayedTogether ?? '0' }} games —
                   {{ formatNullableNumber(report.bestTeamByAvg.avgScorePerRound) }}
                 </span>
-                <span v-else>—</span>
+                <span v-else>No eligible teams (minimum 3 rounds)</span>
               </p>
               <p class="mb-1">
                 <strong>Best Team (Single Round):</strong>
