@@ -11,11 +11,11 @@ Quick overview:
 
 Developer notes:
 - Backend: `dotnet build` / `dotnet run` from the solution root or within the `TeeTimeTally.API` folder.
-- Frontend: run the client under WSL (recommended) to avoid devtools/plugin issues on some Windows hosts. From the client folder:
+- rontend: run the client under WSL (recommended) to avoid devtools/plugin issues on some Windows hosts. From the repo root
 
 ```bash
 # from WSL (recommended)
-cd /mnt/c/Users/Tanner/Documents/Code/TeeTimeTally/TeeTimeTally.UI/Client
+cd TeeTimeTally.UI/Client
 npm ci
 npm run build
 ```

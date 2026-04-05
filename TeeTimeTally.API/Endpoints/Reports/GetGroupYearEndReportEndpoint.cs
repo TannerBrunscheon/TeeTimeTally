@@ -1,8 +1,5 @@
-
-using Dapper;
 using FastEndpoints;
 using Microsoft.AspNetCore.Authorization;
-using Npgsql;
 using TeeTimeTally.Shared.Auth;
 using TeeTimeTally.Shared.Reports;
 using TeeTimeTally.API.Services;

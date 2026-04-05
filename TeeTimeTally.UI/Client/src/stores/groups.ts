@@ -1,8 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { useHttpClient } from '@/composables/useHttpClient';
 import * as groupsApi from '@/services/groupsApi';
-import { AppError, ErrorType, type ResponseError } from '@/primitives/error';
+import { AppError } from '@/primitives/error';
 import { Result, type DefaultResult } from '@/primitives/result';
 import { mapApiErrorToAppError } from '@/services/apiError';
 import { Permissions } from '@/models/auth/permissions';
