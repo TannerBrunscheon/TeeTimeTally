@@ -59,7 +59,7 @@ public class ReportService
         // over total round scores (lower is better). These populate the same DTO
         // fields previously named 'vs par' so UI continues to work without DB schema changes.
         const string vsParSql = @"
-            SELECT rp.golfer_id AS GolferId, AVG(player_round_score_total)::numeric AS AvgVsParPerRound
+            SELECT t.golfer_id AS GolferId, AVG(player_round_score_total)::numeric AS AvgVsParPerRound
             FROM (
                 SELECT rp.golfer_id, rs.round_id,
                        SUM(rs.score) AS player_round_score_total
@@ -69,7 +69,7 @@ public class ReportService
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rp.golfer_id, rs.round_id
             ) t
-            GROUP BY rp.golfer_id;
+            GROUP BY t.golfer_id;
         ";
         var vsPars = (await connection.QueryAsync(vsParSql, new { RoundIds = roundIds.ToArray() }))
             .ToDictionary(r => (Guid)r.golferid, r => (decimal)r.avgvsparperround);
