@@ -50,6 +50,7 @@ const sortedPlayers = computed(() => {
       case 'fullName': return a.fullName.localeCompare(b.fullName) * dir;
       case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
       case 'winnings': return ((a.netWinnings ?? 0) - (b.netWinnings ?? 0)) * dir;
+  case 'cth': return ((a.closestToHoleCount ?? 0) - (b.closestToHoleCount ?? 0)) * dir;
       case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
       case 'avg': return ((a.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
       case 'median': return ((a.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
@@ -102,6 +103,7 @@ function toggleSort(key: string) {
           <tr>
             <th @click="toggleSort('fullName')" style="cursor:pointer">Player</th>
             <th @click="toggleSort('timesPlayed')" style="cursor:pointer">Times Played</th>
+            <th @click="toggleSort('cth')" style="cursor:pointer">CTH</th>
             <th @click="toggleSort('winnings')" style="cursor:pointer">Winnings</th>
             <th @click="toggleSort('net')" style="cursor:pointer">Net</th>
             <th @click="toggleSort('avg')" style="cursor:pointer">Avg score/round</th>
@@ -112,6 +114,7 @@ function toggleSort(key: string) {
           <tr v-for="p in sortedPlayers" :key="p.golferId">
             <td>{{ p.fullName }}</td>
             <td>{{ p.timesPlayed }}</td>
+            <td>{{ p.closestToHoleCount ?? 0 }}</td>
             <td>{{ formatCurrency(p.netWinnings) }}</td>
             <td>{{ formatCurrency(displayedNet(p)) }}</td>
             <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
