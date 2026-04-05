@@ -1,39 +1,17 @@
 # Client
 
-This template should help get you started developing with Vue 3 in Vite.
+The frontend client for TeeTimeTally (Vue 3 + TypeScript + Pinia + Vite).
 
-## Recommended IDE Setup
+Quick start (WSL recommended):
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
-
-## Type Support for `.vue` Imports in TS
-
-TypeScript cannot handle type information for `.vue` imports by default, so we replace the `tsc` CLI with `vue-tsc` for type checking. In editors, we need [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) to make the TypeScript language service aware of `.vue` types.
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
-npm install
+```bash
+cd Client
+npm ci
+npm run dev     # start dev server
+npm run build   # production build
+npm run type-check
 ```
 
-### Compile and Hot-Reload for Development
-
-```sh
-npm run dev
-```
-
-### Type-Check, Compile and Minify for Production
-
-```sh
-npm run build
-```
-
-### Lint with [ESLint](https://eslint.org/)
-
-```sh
-npm run lint
-```
+Notes:
+- If you get an error related to `@vue/devtools` or `localStorage` during build, run the build inside WSL or ensure Node on Windows has access to required global APIs. The repo guards the devtools plugin in `vite.config.ts`.
+- Frontend code uses `mapApiErrorToAppError` (in `src/services/apiError.ts`) to normalize API errors to `AppError` objects.

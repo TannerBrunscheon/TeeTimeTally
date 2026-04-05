@@ -1,3 +1,68 @@
+<script setup lang="ts">
+import { ref, computed, watchEffect } from 'vue';
+import { useAuthenticationStore } from '@/stores/authentication';
+
+const authenticationStore = useAuthenticationStore();
+const user = computed(() => authenticationStore.user);
+
+const editableFullName = ref('');
+const updateStatusMessage = ref('');
+const updateStatusType = ref<'success' | 'error' | ''>('');
+
+// Watch for changes in the store's user object to initialize/reset editableFullName
+watchEffect(() => {
+  if (user.value) {
+    editableFullName.value = user.value.fullName || '';
+  } else {
+    editableFullName.value = '';
+  }
+});
+
+const isNameChanged = computed(() => {
+  return user.value ? editableFullName.value.trim() !== user.value.fullName.trim() && editableFullName.value.trim() !== '' : false;
+});
+
+const formattedCreatedAt = computed(() => {
+  if (user.value?.createdAt) {
+    try {
+      return new Date(user.value.createdAt).toLocaleDateString(undefined, {
+        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    } catch (e) {
+      return user.value.createdAt;
+    }
+  }
+  return 'N/A';
+});
+
+async function handleProfileUpdate() {
+  if (!isNameChanged.value || !user.value) {
+    updateStatusMessage.value = 'No changes to save or user data not loaded.';
+    updateStatusType.value = 'error';
+    return;
+  }
+
+  updateStatusMessage.value = ''; // Clear previous messages
+  updateStatusType.value = '';
+
+  const result = await authenticationStore.updateMyProfile(editableFullName.value.trim());
+
+  if (result.isSuccess) {
+    updateStatusMessage.value = 'Profile updated successfully!';
+    updateStatusType.value = 'success';
+    // editableFullName will be updated via watchEffect when store's user.value changes
+  } else {
+    updateStatusMessage.value = result.error?.message || 'Failed to update profile. Please try again.';
+    updateStatusType.value = 'error';
+  }
+  // Optionally clear message after a few seconds
+  setTimeout(() => {
+    updateStatusMessage.value = '';
+    updateStatusType.value = '';
+  }, 5000);
+}
+</script>
+
 <template>
   <section id="profile-view" class="py-4">
     <div v-if="authenticationStore.isLoading" class="text-center">
@@ -114,71 +179,6 @@
     </div>
   </section>
 </template>
-
-<script setup lang="ts">
-import { ref, computed, watchEffect } from 'vue';
-import { useAuthenticationStore } from '@/stores/authentication';
-
-const authenticationStore = useAuthenticationStore();
-const user = computed(() => authenticationStore.user);
-
-const editableFullName = ref('');
-const updateStatusMessage = ref('');
-const updateStatusType = ref<'success' | 'error' | ''>('');
-
-// Watch for changes in the store's user object to initialize/reset editableFullName
-watchEffect(() => {
-  if (user.value) {
-    editableFullName.value = user.value.fullName || '';
-  } else {
-    editableFullName.value = '';
-  }
-});
-
-const isNameChanged = computed(() => {
-  return user.value ? editableFullName.value.trim() !== user.value.fullName.trim() && editableFullName.value.trim() !== '' : false;
-});
-
-const formattedCreatedAt = computed(() => {
-  if (user.value?.createdAt) {
-    try {
-      return new Date(user.value.createdAt).toLocaleDateString(undefined, {
-        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
-    } catch (e) {
-      return user.value.createdAt;
-    }
-  }
-  return 'N/A';
-});
-
-async function handleProfileUpdate() {
-  if (!isNameChanged.value || !user.value) {
-    updateStatusMessage.value = 'No changes to save or user data not loaded.';
-    updateStatusType.value = 'error';
-    return;
-  }
-
-  updateStatusMessage.value = ''; // Clear previous messages
-  updateStatusType.value = '';
-
-  const result = await authenticationStore.updateMyProfile(editableFullName.value.trim());
-
-  if (result.isSuccess) {
-    updateStatusMessage.value = 'Profile updated successfully!';
-    updateStatusType.value = 'success';
-    // editableFullName will be updated via watchEffect when store's user.value changes
-  } else {
-    updateStatusMessage.value = result.error?.message || 'Failed to update profile. Please try again.';
-    updateStatusType.value = 'error';
-  }
-  // Optionally clear message after a few seconds
-  setTimeout(() => {
-    updateStatusMessage.value = '';
-    updateStatusType.value = '';
-  }, 5000);
-}
-</script>
 
 <style scoped>
 #profile-view .card {

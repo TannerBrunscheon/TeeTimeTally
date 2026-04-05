@@ -7,3 +7,4 @@ export * from './course';
 export * from './round';
 export * from './group';
 export * from './golfer';
+export * from './reports';

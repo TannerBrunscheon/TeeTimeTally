@@ -72,3 +72,6 @@ nunit-*.xml
 
 # JetBrains Rider
 .idea/*
+
+# Generated per-component inventory files (IDE/extension artifacts)
+**/*.inventory.json

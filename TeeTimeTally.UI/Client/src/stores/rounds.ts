@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { useHttpClient } from '@/composables/useHttpClient';
+import * as roundsApi from '@/services/roundsApi';
+import { mapApiErrorToAppError } from '@/services/apiError';
 import { AppError, type ResponseError } from '@/primitives/error';
 import { Result, type DefaultResult } from '@/primitives/result';
 import { useAuthenticationStore } from './authentication';
@@ -34,7 +35,7 @@ export const useRoundsStore = defineStore('rounds', () => {
   const isLoadingCompleteRound = ref(false);
 
   const authenticationStore = useAuthenticationStore();
-  const httpClient = useHttpClient();
+  
 
   // --- ACTIONS ---
 
@@ -49,18 +50,14 @@ export const useRoundsStore = defineStore('rounds', () => {
     isLoadingOpenRounds.value = true;
     openRoundsError.value = null;
     try {
-      const { data } = await httpClient.get<OpenRound[]>('/api/rounds/open');
+      const data = await roundsApi.fetchOpenRounds();
       openRounds.value = data;
       isLoadingOpenRounds.value = false;
       return Result.success();
     } catch (error: any) {
       isLoadingOpenRounds.value = false;
-      const apiError = error as ResponseError;
-      openRoundsError.value = AppError.failure(
-        (apiError.response?.data as any)?.detail ||
-        apiError.message ||
-        'An unknown error occurred while fetching open rounds.'
-      );
+      const appError = mapApiErrorToAppError(error, 'An unknown error occurred while fetching open rounds.');
+      openRoundsError.value = appError;
       openRounds.value = [];
       console.error('Error fetching open rounds:', openRoundsError.value);
       return Result.failure(openRoundsError.value);
@@ -77,14 +74,13 @@ export const useRoundsStore = defineStore('rounds', () => {
     isLoadingGroupRoundHistory.value = true;
     groupRoundHistoryError.value = null;
     try {
-      const { data } = await httpClient.get<GetGroupRoundHistoryResponse>(`/api/groups/${groupId}/rounds/history`);
+      const data = await roundsApi.fetchGroupRoundHistory(groupId);
       groupRoundHistory.value = data.rounds;
       isLoadingGroupRoundHistory.value = false;
       return Result.successWithValue(data.rounds);
     } catch (error: any) {
       isLoadingGroupRoundHistory.value = false;
-      const apiError = error as ResponseError;
-      const appError = AppError.failure((apiError.response?.data as any)?.detail || 'Failed to fetch round history.');
+      const appError = mapApiErrorToAppError(error, 'Failed to fetch round history.');
       groupRoundHistoryError.value = appError;
       console.error('Error fetching round history:', appError);
       return Result.failureWithValue(appError);
@@ -103,32 +99,13 @@ export const useRoundsStore = defineStore('rounds', () => {
 
     isLoadingStartRound.value = true;
     try {
-      const { data } = await httpClient.post<StartRoundResponse>(
-        `/api/groups/${groupId}/rounds`,
-        request
-      );
+      const data = await roundsApi.startRound(groupId, request);
       isLoadingStartRound.value = false;
       await fetchOpenRounds();
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingStartRound.value = false;
-      const apiError = error as ResponseError;
-      const errorMessage =
-        (apiError.response?.data as any)?.detail ||
-        (apiError.response?.data as any)?.title ||
-        apiError.message ||
-        'Failed to start round.';
-
-      let appError: AppError;
-      if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) {
-        const validationErrors = (apiError.response.data as any).errors;
-        const firstErrorKey = Object.keys(validationErrors)[0];
-        const firstErrorMessage = validationErrors[firstErrorKey]?.[0] || 'Please check your input.';
-        appError = AppError.validation(firstErrorMessage)
-      } else {
-        appError = AppError.failure(errorMessage)
-      }
-
+      const appError = mapApiErrorToAppError(error, 'Failed to start round.');
       console.error('Error starting round:', appError);
       return Result.failureWithValue(appError);
     }
@@ -138,14 +115,13 @@ export const useRoundsStore = defineStore('rounds', () => {
     isLoadingCurrentRound.value = true;
     currentRound.value = null;
     try {
-      const { data } = await httpClient.get<GetRoundByIdResponse>(`/api/rounds/${roundId}`);
+      const data = await roundsApi.fetchRoundById(roundId);
       currentRound.value = data;
       isLoadingCurrentRound.value = false;
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingCurrentRound.value = false;
-      const apiError = error as ResponseError;
-      const appError = AppError.failure((apiError.response?.data as any)?.detail || 'Failed to fetch round details.');
+      const appError = mapApiErrorToAppError(error, 'Failed to fetch round details.');
       console.error('Error fetching round by ID:', appError);
       return Result.failureWithValue(appError);
     }
@@ -154,13 +130,12 @@ export const useRoundsStore = defineStore('rounds', () => {
   async function submitScores(roundId: string, scores: SubmitScoresRequest['scoresToSubmit']): Promise<Result<SubmitScoresResponse>> {
     isLoadingSubmitScores.value = true;
     try {
-      const { data } = await httpClient.post<SubmitScoresResponse>(`/api/rounds/${roundId}/scores`, { scoresToSubmit: scores });
+      const data = await roundsApi.submitScores(roundId, scores);
       isLoadingSubmitScores.value = false;
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingSubmitScores.value = false;
-      const apiError = error as ResponseError;
-      const appError = AppError.failure((apiError.response?.data as any)?.detail || 'Failed to submit scores.');
+      const appError = mapApiErrorToAppError(error, 'Failed to submit scores.');
       console.error('Error submitting scores:', appError);
       return Result.failureWithValue(appError);
     }
@@ -169,15 +144,15 @@ export const useRoundsStore = defineStore('rounds', () => {
   async function completeRound(roundId: string, request: Omit<CompleteRoundRequest, 'roundId'>): Promise<Result<CompleteRoundResponse>> {
     isLoadingCompleteRound.value = true;
     try {
-      const { data } = await httpClient.post<CompleteRoundResponse>(`/api/rounds/${roundId}/complete`, request);
+      const data = await roundsApi.completeRound(roundId, request);
       isLoadingCompleteRound.value = false;
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingCompleteRound.value = false;
-      const apiError = error as ResponseError;
+      const apiError = error as any;
 
       // Handle the specific 409 Conflict for ties
-      if (apiError.response?.status === 409) {
+      if (apiError?.response?.status === 409) {
         const problemDetails = apiError.response.data as { detail?: string, [key: string]: any };
         const appError = AppError.conflict(
           problemDetails.detail || "A tie was detected.",
@@ -186,7 +161,7 @@ export const useRoundsStore = defineStore('rounds', () => {
         return Result.failureWithValue(appError);
       }
 
-      const appError = AppError.failure((apiError.response?.data as any)?.detail || 'Failed to complete round.');
+      const appError = mapApiErrorToAppError(error, 'Failed to complete round.');
       console.error('Error completing round:', appError);
       return Result.failureWithValue(appError);
     }

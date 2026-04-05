@@ -1,6 +1,7 @@
 import { ref } from 'vue';
 import { defineStore } from 'pinia';
-import { useHttpClient } from '@/composables/useHttpClient';
+import * as golfersApi from '@/services/golfersApi';
+import { mapApiErrorToAppError } from '@/services/apiError';
 import { AppError, ErrorType, type ResponseError } from '@/primitives/error'; // Added ErrorType
 import { Result } from '@/primitives/result';
 import { useAuthenticationStore } from './authentication';
@@ -14,7 +15,6 @@ export const useGolfersStore = defineStore('golfers', () => {
   const golfersError = ref<AppError | null>(null); // General error for the store, can be specified per action
 
   const authenticationStore = useAuthenticationStore();
-  const httpClient = useHttpClient(); // Get instance once
 
   /**
    * Searches for golfers based on provided criteria.
@@ -32,14 +32,14 @@ export const useGolfersStore = defineStore('golfers', () => {
     isLoadingGolfers.value = true;
     golfersError.value = null;
     try {
-      const { data } = await httpClient.get<Golfer[]>('/api/golfers', { params });
+      const data = await golfersApi.searchGolfers(params);
       golfers.value = data; // Update the store's state with search results
       isLoadingGolfers.value = false;
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingGolfers.value = false;
-      const apiError = error as ResponseError;
-      golfersError.value = AppError.failure((apiError.response?.data as any)?.detail || apiError.message || 'Failed to search golfers.');
+      const appError = mapApiErrorToAppError(error, 'Failed to search golfers.');
+      golfersError.value = appError;
       console.error('Error searching golfers:', golfersError.value);
       return Result.failureWithValue<Golfer[]>(golfersError.value); // Ensure generic type matches
     }
@@ -60,43 +60,15 @@ export const useGolfersStore = defineStore('golfers', () => {
     isLoadingCreateGolfer.value = true;
     golfersError.value = null; // Clear previous errors
     try {
-      const { data } = await httpClient.post<CreateGolferResponse>('/api/golfers', payload);
+      const data = await golfersApi.createGolfer(payload);
       isLoadingCreateGolfer.value = false;
-      // Optionally, add the new golfer to the local 'golfers' list if appropriate for your UI
-      // For example, if search results should immediately reflect the new golfer:
-      // golfers.value.unshift(data); // Add to the beginning
       return Result.successWithValue(data);
     } catch (error: any) {
       isLoadingCreateGolfer.value = false;
-      const apiError = error as ResponseError;
-      let errorMessage = (apiError.response?.data as any)?.detail || apiError.message || 'Failed to create golfer.';
-      let errorType = ErrorType.Failure;
-
-      if (apiError.response?.status === 409) { // Conflict
-        errorMessage = (apiError.response?.data as any)?.detail || (apiError.response?.data as any)?.title || 'A golfer with this email or Auth0 ID already exists.';
-        errorType = ErrorType.Conflict;
-        golfersError.value = AppError.conflict(errorMessage);
-      } else if (apiError.response?.status === 400 && (apiError.response?.data as any)?.errors) { // Validation error
-        const validationErrors = (apiError.response.data as any).errors;
-        // FastEndpoints often returns errors in a dictionary format.
-        // Taking the first error message for simplicity.
-        const firstErrorKey = Object.keys(validationErrors)[0];
-        if (validationErrors[firstErrorKey] && validationErrors[firstErrorKey].length > 0) {
-          errorMessage = validationErrors[firstErrorKey][0];
-        } else {
-          errorMessage = "Validation failed. Please check your input.";
-        }
-        errorType = ErrorType.Validation;
-        golfersError.value = AppError.validation(errorMessage);
-      } else {
-        golfersError.value = AppError.failure(errorMessage);
-      }
-
-      console.error('Error creating golfer:', errorMessage, apiError.response);
-      // Return a Result consistent with the error type
-      if (errorType === ErrorType.Conflict) return Result.failureWithValue<CreateGolferResponse>(AppError.conflict(errorMessage));
-      if (errorType === ErrorType.Validation) return Result.failureWithValue<CreateGolferResponse>(AppError.validation(errorMessage));
-      return Result.failureWithValue<CreateGolferResponse>(AppError.failure(errorMessage));
+      const appError = mapApiErrorToAppError(error, 'Failed to create golfer.');
+      golfersError.value = appError;
+      console.error('Error creating golfer:', appError);
+      return Result.failureWithValue<CreateGolferResponse>(appError);
     }
   }
 

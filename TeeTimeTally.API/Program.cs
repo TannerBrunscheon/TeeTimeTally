@@ -6,6 +6,7 @@ using Microsoft.OpenApi.Models;
 using System.Globalization;
 using System.Security.Claims;
 using TeeTimeTally.API.Identity;
+using TeeTimeTally.API.Services;
 
 
 var builder = WebApplication.CreateBuilder(args);
@@ -105,6 +106,10 @@ builder.Services.AddAuthorization();
 
 builder.Services.AddNpgsqlDataSource(builder.Configuration["DBConnectionString"]!);
 
+// Register application services
+builder.Services.AddScoped<TeeTimeTally.API.Services.ReportService>();
+// Hosted service to periodically refresh materialized views (configurable via MaterializedViewRefresh:IntervalMinutes)
+builder.Services.AddHostedService<MaterializedViewRefresher>();
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, ApplicationAuthorizationPolicyProvider>();
 builder.Services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();
@@ -122,7 +127,6 @@ builder.Services.AddCors(options =>
 		});
 });
 
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -135,7 +139,6 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.UseCors("AllowSpecificOrigin");
-
 
 app.UseAuthentication();
 app.UseAuthorization();

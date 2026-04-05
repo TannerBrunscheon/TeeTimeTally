@@ -4,6 +4,7 @@ import type { MyGolferProfile } from '@/models/auth/user';
 import { Result, type DefaultResult } from '@/primitives/result';
 import { useHttpClient } from '@/composables/useHttpClient';
 import { AppError, type ResponseError } from '@/primitives/error';
+import { mapApiErrorToAppError } from '@/services/apiError';
 
 const nullGolferProfile: MyGolferProfile = {
   id: '',
@@ -60,12 +61,14 @@ export const useAuthenticationStore = defineStore('authentication', () => {
     } catch (error: any) {
       user.value = { ...nullGolferProfile };
       isLoading.value = false;
-      const apiError = error as ResponseError;
-      if (error.response && (error.response.status === 401 || error.response.status === 403 || error.response.status === 404)) {
-        console.warn('User info fetch failed with status:', error.response.status);
+      const appError = mapApiErrorToAppError(error, 'Failed to fetch user profile.');
+      // For auth endpoints, 401/403/404 are expected to mean 'no authenticated user' — treat as success with empty profile
+      const resp = (error as ResponseError)?.response;
+      if (resp && [401, 403, 404].includes(resp.status)) {
+        console.warn('User info fetch returned unauthenticated status:', resp.status);
         return Result.success();
       }
-      return Result.failure(AppError.failure(apiError.message || 'Failed to fetch user profile.'));
+      return Result.failure(appError);
     }
   }
 
@@ -81,16 +84,8 @@ export const useAuthenticationStore = defineStore('authentication', () => {
       return Result.success();
     } catch (error: any) {
       isUpdatingProfile.value = false;
-      const apiError = error as ResponseError;
-      // Construct a more specific error message if possible
-      let detail = 'Failed to update profile.';
-      if (apiError.response?.data && typeof apiError.response.data === 'object') {
-        // Assuming error response might have a 'detail' or 'title' property
-        detail = (apiError.response.data as any).detail || (apiError.response.data as any).title || detail;
-      } else if (apiError.message) {
-        detail = apiError.message;
-      }
-      return Result.failure(AppError.failure(detail));
+      const appError = mapApiErrorToAppError(error, 'Failed to update profile.');
+      return Result.failure(appError);
     }
   }
 

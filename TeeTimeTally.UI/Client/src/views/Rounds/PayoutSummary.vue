@@ -21,6 +21,7 @@ const sortedPayouts = computed(() => {
 });
 
 </script>
+
 <template>
     <div class="card border-success">
          <div class="card-header bg-success text-white">
