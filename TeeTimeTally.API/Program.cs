@@ -74,29 +74,34 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
 		{
 			OnAuthenticationFailed = context =>
 			{
-				// Log detailed error
-				Console.WriteLine("API Auth Failed: " + context.Exception.ToString());
+				var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+				logger.LogWarning(context.Exception, "API Auth Failed");
 				return Task.CompletedTask;
 			},
 			OnTokenValidated = context =>
 			{
-				Console.WriteLine("API Token Validated for: " + context.Principal!.Identity!.Name);
-				// You can add more logging here to see the claims after JwtBearer processing
-				Console.WriteLine("Claims after JwtBearer validation:");
-				foreach (var claim in context.Principal.Claims)
+				var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+				logger.LogInformation("API Token validated for: {User}", context.Principal!.Identity!.Name);
+				if (logger.IsEnabled(LogLevel.Debug))
 				{
-					Console.WriteLine($"  Type: {claim.Type}, Value: {claim.Value}");
+					logger.LogDebug("Claims after JwtBearer validation:");
+					foreach (var claim in context.Principal.Claims)
+					{
+						logger.LogDebug("  Type: {Type}, Value: {Value}", claim.Type, claim.Value);
+					}
 				}
 				return Task.CompletedTask;
 			},
 			OnChallenge = context =>
 			{
-				Console.WriteLine("API OnChallenge: " + context.Error + " - " + context.ErrorDescription);
+				var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+				logger.LogWarning("API OnChallenge: {Error} - {Description}", context.Error, context.ErrorDescription);
 				return Task.CompletedTask;
 			},
 			OnMessageReceived = context =>
 			{
-				Console.WriteLine("API Message Received. Token: " + (string.IsNullOrEmpty(context.Token) ? "NOT FOUND" : "FOUND"));
+				var logger = context.HttpContext.RequestServices.GetRequiredService<ILogger<Program>>();
+				logger.LogDebug("API Message Received. Token: {HasToken}", string.IsNullOrEmpty(context.Token) ? "NOT FOUND" : "FOUND");
 				return Task.CompletedTask;
 			}
 		};

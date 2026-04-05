@@ -92,7 +92,8 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 			return;
 		}
 
-		await using var connection = await dataSource.OpenConnectionAsync(ct);
+	await using var connection = await dataSource.OpenConnectionAsync(ct);
+	const int dbCommandTimeoutSeconds = 60; // increase for large rounds
 
 		// Fetch base round details along with joined info
 		const string roundSql = @"
@@ -118,7 +119,7 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
             LEFT JOIN group_financial_configurations gfc ON r.financial_configuration_id = gfc.id
             WHERE r.id = @RoundId AND r.is_deleted = FALSE AND gr.is_deleted = FALSE;";
 
-		var roundBaseInfo = await connection.QuerySingleOrDefaultAsync<RoundBaseInfo>(roundSql, new { req.RoundId });
+	var roundBaseInfo = await connection.QuerySingleOrDefaultAsync<RoundBaseInfo>(roundSql, new { req.RoundId }, commandTimeout: dbCommandTimeoutSeconds);
 
 		if (roundBaseInfo == null)
 		{
@@ -129,7 +130,7 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 		// --- Authorization Check: Admin, Scorer for the group, or Participant in the round ---
 		var currentUserInfo = await connection.QuerySingleOrDefaultAsync<CurrentUserGolferInfo>(
 			"SELECT id AS Id, is_system_admin AS IsSystemAdmin FROM golfers WHERE auth0_user_id = @Auth0UserId AND is_deleted = FALSE;",
-			new { Auth0UserId = auth0UserId });
+			new { Auth0UserId = auth0UserId }, commandTimeout: dbCommandTimeoutSeconds);
 
 		if (currentUserInfo == null)
 		{
@@ -142,14 +143,14 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 		{
 			var isScorer = await connection.QuerySingleOrDefaultAsync<bool>(
 				"SELECT TRUE FROM group_members WHERE group_id = @GroupId AND golfer_id = @GolferId AND is_scorer = TRUE;",
-				new { roundBaseInfo.GroupId, GolferId = currentUserInfo.Id });
+				new { roundBaseInfo.GroupId, GolferId = currentUserInfo.Id }, commandTimeout: dbCommandTimeoutSeconds);
 			if (isScorer) isAuthorized = true;
 		}
 		if (!isAuthorized)
 		{
 			var isParticipant = await connection.QuerySingleOrDefaultAsync<bool>(
 				"SELECT TRUE FROM round_participants WHERE round_id = @RoundId AND golfer_id = @GolferId;",
-				new { req.RoundId, GolferId = currentUserInfo.Id });
+				new { req.RoundId, GolferId = currentUserInfo.Id }, commandTimeout: dbCommandTimeoutSeconds);
 			if (isParticipant) isAuthorized = true;
 		}
 
@@ -165,10 +166,10 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 		// Fetch Teams and their Members
 		var teamsInRound = new List<TeamInRoundResponse>();
 		const string teamsSql = "SELECT id AS TeamId, team_name_or_number AS TeamNameOrNumber, is_overall_winner as IsOverallWinner FROM round_teams WHERE round_id = @RoundId AND is_deleted = FALSE;";
-		var dbTeams = await connection.QueryAsync(teamsSql, new { req.RoundId });
+	var dbTeams = await connection.QueryAsync(teamsSql, new { req.RoundId }, commandTimeout: dbCommandTimeoutSeconds);
 
 		const string participantsSql = "SELECT rp.round_team_id AS TeamId, rp.golfer_id AS GolferId, g.full_name AS FullName FROM round_participants rp JOIN golfers g ON rp.golfer_id = g.id WHERE rp.round_id = @RoundId AND g.is_deleted = FALSE;";
-		var dbParticipants = (await connection.QueryAsync<dynamic>(participantsSql, new { req.RoundId })).ToList();
+	var dbParticipants = (await connection.QueryAsync<dynamic>(participantsSql, new { req.RoundId }, commandTimeout: dbCommandTimeoutSeconds)).ToList();
 
 		foreach (var dbTeam in dbTeams)
 		{
@@ -181,7 +182,7 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 
 		// Fetch Scores
 		const string scoresSql = "SELECT round_team_id AS TeamId, hole_number AS HoleNumber, score AS Score, is_skin_winner AS IsSkinWinner, skin_value_won AS SkinValueWon FROM round_scores WHERE round_id = @RoundId;";
-		var scores = (await connection.QueryAsync<ScoreDetailResponse>(scoresSql, new { req.RoundId })).ToList();
+	var scores = (await connection.QueryAsync<ScoreDetailResponse>(scoresSql, new { req.RoundId }, commandTimeout: dbCommandTimeoutSeconds)).ToList();
 
 		// Fetch CTH Winner Golfer Name if ID exists
 		string? cthWinnerName = null;
@@ -189,7 +190,7 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 		{
 			cthWinnerName = await connection.QuerySingleOrDefaultAsync<string>(
 				"SELECT full_name FROM golfers WHERE id = @GolferId AND is_deleted = FALSE;",
-				new { GolferId = roundBaseInfo.CthWinnerGolferId.Value });
+				new { GolferId = roundBaseInfo.CthWinnerGolferId.Value }, commandTimeout: dbCommandTimeoutSeconds);
 		}
 
 		// --- NEW LOGIC for Finalized Rounds ---
@@ -199,7 +200,7 @@ public class GetRoundByIdEndpoint(NpgsqlDataSource dataSource, ILogger<GetRoundB
 		if (roundBaseInfo.Status == "Finalized")
 		{
 			const string selectPayoutsSql = "SELECT g.full_name as FullName, rt.team_name_or_number as TeamName, rps.* FROM round_payout_summary rps JOIN golfers g ON rps.golfer_id = g.id JOIN round_teams rt ON rps.team_id = rt.id WHERE rps.round_id = @RoundId;";
-			var payoutSummariesFromDb = await connection.QueryAsync<dynamic>(selectPayoutsSql, new { req.RoundId });
+			var payoutSummariesFromDb = await connection.QueryAsync<dynamic>(selectPayoutsSql, new { req.RoundId }, commandTimeout: dbCommandTimeoutSeconds);
 
 			playerPayouts = payoutSummariesFromDb.Select(p => {
 				var breakdown = JsonSerializer.Deserialize<PlayerPayoutBreakdown>((string)p.breakdown) ?? new PlayerPayoutBreakdown(0, 0, 0);
