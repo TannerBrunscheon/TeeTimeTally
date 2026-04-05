@@ -23,9 +23,12 @@ const ariaSort = computed(() => {
   <th
     :class="props.cellClass"
     role="button"
+    tabindex="0"
     :aria-label="`Sort by ${props.label}`"
     :aria-sort="ariaSort"
     @click="onClick"
+    @keydown.enter.prevent="onClick"
+    @keydown.space.prevent="onClick"
     style="cursor:pointer; user-select:none"
   >
     <span>{{ props.label }}</span>

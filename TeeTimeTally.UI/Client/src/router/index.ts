@@ -62,20 +62,20 @@ const router = createRouter({
           path: '',
           name: 'groups-index',
           component: () => import('../views/Groups/GroupsIndexView.vue'),
-          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
+          meta: { requiresAuth: true, requiresPermission: Permissions.ReadGroups }
         },
         {
           path: 'create',
           name: 'create-group',
           component: () => import('../views/Groups/CreateGroupView.vue'), // This component needs to be created
-          meta: { requiresAuth: true, requiredPermission: Permissions.CreateGroups }
+          meta: { requiresAuth: true, requiresPermission: Permissions.CreateGroups }
         },
         {
           path: ':groupId',
           name: 'group-detail',
           component: () => import('../views/Groups/GroupDetailView.vue'),
           props: true, // Allows groupId to be passed as a prop
-          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroups }
+          meta: { requiresAuth: true, requiresPermission: Permissions.ReadGroups }
         }
         ,
         {
@@ -83,7 +83,7 @@ const router = createRouter({
           name: 'group-year-report',
           component: () => import('../views/Groups/GroupYearEndReport.vue'),
           props: true,
-          meta: { requiresAuth: true, requiredPermission: Permissions.ReadGroupRounds }
+          meta: { requiresAuth: true, requiresPermission: Permissions.ReadGroupRounds }
         }
       ]
     }, {

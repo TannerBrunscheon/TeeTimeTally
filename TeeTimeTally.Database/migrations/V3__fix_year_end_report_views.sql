@@ -1,6 +1,0 @@
--- REMOVED: This migration is no longer necessary. V2 has been adjusted to
--- avoid referencing per-hole par data and V3 was previously used as a fix
--- migration. Since V2 never applied in earlier environments, we've removed
--- the V3 recreation here to keep the migration sequence clean. If you need
--- these view re-creations in the future, add a new migration that explicitly
--- creates or refreshes the materialized views.

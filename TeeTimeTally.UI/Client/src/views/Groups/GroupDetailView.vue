@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue';
+import { onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { useGroupDetail } from '@/composables/useGroupDetail';
 import { useGroupsStore } from '@/stores/groups';
@@ -31,6 +31,13 @@ const {
 } = useGroupDetail(String(props.groupId));
 
 onMounted(() => loadGroupData());
+
+// When navigating between groups, the component instance can be reused.
+// Watch the incoming prop and reload data when it changes.
+watch(() => props.groupId, (newVal) => {
+  groupIdRef.value = String(newVal);
+  loadGroupData();
+});
 
 const groupsStore = useGroupsStore();
 

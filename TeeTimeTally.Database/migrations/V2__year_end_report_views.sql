@@ -15,6 +15,9 @@ GROUP BY rs.round_id, r.group_id, rp.golfer_id, date_part('year', r.round_date);
 
 CREATE INDEX IF NOT EXISTS idx_mv_round_player_diffs_round_year ON mv_round_player_diffs (round_year);
 CREATE INDEX IF NOT EXISTS idx_mv_round_player_diffs_group_id ON mv_round_player_diffs (group_id);
+-- A UNIQUE index is required for REFRESH MATERIALIZED VIEW CONCURRENTLY to work.
+-- Add a unique index covering all rows (no WHERE clause).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_round_player_diffs_unique ON mv_round_player_diffs (round_id, golfer_id);
 
 -- 2) per-round per-team diffs
 CREATE MATERIALIZED VIEW IF NOT EXISTS mv_round_team_diffs AS
@@ -31,6 +34,8 @@ GROUP BY rs.round_id, r.group_id, rs.round_team_id, date_part('year', r.round_da
 
 CREATE INDEX IF NOT EXISTS idx_mv_round_team_diffs_round_year ON mv_round_team_diffs (round_year);
 CREATE INDEX IF NOT EXISTS idx_mv_round_team_diffs_group_id ON mv_round_team_diffs (group_id);
+-- Add a UNIQUE index for concurrent refresh support.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_mv_round_team_diffs_unique ON mv_round_team_diffs (round_id, round_team_id);
 
 -- Note: These materialized views should be refreshed after rounds are finalized. Consider creating a scheduled job
 -- or refreshing them in application code after finalization.
