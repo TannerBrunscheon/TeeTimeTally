@@ -19,9 +19,23 @@ const router = useRouter();
 const selectedYear = computed(() => props.year ?? new Date().getFullYear());
 const year = selectedYear.value;
 
+const group = ref<any | null>(null);
+
 function formatCurrency(value: number | null | undefined) {
-  if (value === null || value === undefined) return '';
+  if (value === null || value === undefined) return '—';
   return `$${value.toFixed(2)}`;
+}
+
+function formatNullableNumber(value?: number | null) {
+  if (value === null || value === undefined) return '—';
+  return value.toFixed(2);
+}
+
+function displayedNet(p: any) {
+  const buyIn = group.value?.activeFinancialConfiguration?.buyInAmount ?? 0;
+  const contributed = (p.timesPlayed ?? 0) * buyIn;
+  const net = (p.netWinnings ?? 0) - contributed;
+  return net;
 }
 
 async function load() {
@@ -29,6 +43,15 @@ async function load() {
   const res = await reportsStore.fetchGroupYearEndReport(props.groupId, year);
   loading.value = false;
   if (res.isSuccess) report.value = res.value!;
+  // fetch group details for buy-in lookup
+  try {
+    const { useGroupsStore } = await import('@/stores/groups');
+    const groupsStore = useGroupsStore();
+    const gres = await groupsStore.fetchGroupById(props.groupId);
+    if (gres.isSuccess) group.value = gres.value;
+  } catch (e) {
+    // ignore
+  }
 }
 
 onMounted(load);
@@ -71,29 +94,29 @@ function viewFullReport() {
               </div>
             </div>
             <div class="mb-3 row">
-              <div class="col-md-6"><strong>Avg Group vs Par:</strong> {{ report.groupSummary.avgGroupVsPar.toFixed(2) }}</div>
-              <div class="col-md-6"><strong>Median Group vs Par:</strong> {{ report.groupSummary.medianGroupVsPar.toFixed(2) }}</div>
+              <div class="col-md-6"><strong>Avg</strong>: {{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }}</div>
+              <div class="col-md-6"><strong>Median</strong>: {{ formatNullableNumber(report.groupSummary.medianGroupVsPar) }}</div>
             </div>
 
             <h6>Members</h6>
             <div class="table-responsive">
-              <table class="table table-sm">
+              <table class="table table-sm table-striped">
                 <thead>
                   <tr>
                     <th>Player</th>
                     <th>Times Played</th>
                     <th>Net</th>
-                    <th>Avg vs Par</th>
-                    <th>Median vs Par</th>
+                    <th>Avg score/round</th>
+                    <th>Median score/round</th>
                   </tr>
                 </thead>
                 <tbody>
                   <tr v-for="p in report.players" :key="p.golferId">
                     <td>{{ p.fullName }}</td>
                     <td>{{ p.timesPlayed }}</td>
-                    <td>{{ formatCurrency(p.netWinnings) }}</td>
-                    <td>{{ p.avgVsParPerRound.toFixed(2) }}</td>
-                    <td>{{ p.medianVsParPerRound.toFixed(2) }}</td>
+                    <td>{{ formatCurrency(displayedNet(p)) }}</td>
+                    <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
+                    <td>{{ formatNullableNumber(p.medianVsParPerRound) }}</td>
                   </tr>
                 </tbody>
               </table>
