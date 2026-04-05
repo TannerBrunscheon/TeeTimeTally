@@ -142,16 +142,24 @@ public class ReportService
         decimal maxPot = pot.maxpot is decimal d2 ? Math.Round(d2, 2) : 0m;
 
     var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
-    // Choose best by average only among players with a computed average
-    var bestPlayer = playersList
-        .Where(p => p.AvgVsParPerRound.HasValue)
-        .OrderBy(p => p.AvgVsParPerRound!.Value)
-        .FirstOrDefault();
-    // Choose best by median only among players with a computed median
-    var bestPlayerByMedian = playersList
-        .Where(p => p.MedianVsParPerRound.HasValue)
-        .OrderBy(p => p.MedianVsParPerRound!.Value)
-        .FirstOrDefault();
+
+    // Prefer selecting best players from the computed SQL maps to avoid
+    // ordering/assignment timing issues. These maps contain the raw numbers
+    // we used to populate the player DTOs above.
+    PlayerYearStatsDto? bestPlayer = null;
+    PlayerYearStatsDto? bestPlayerByMedian = null;
+
+    if (vsPars.Any())
+    {
+        var bestId = vsPars.OrderBy(kv => kv.Value).First().Key;
+        players.TryGetValue(bestId, out bestPlayer);
+    }
+
+    if (vsParsMedian.Any(kv => kv.Value.HasValue))
+    {
+        var bestMedianId = vsParsMedian.Where(kv => kv.Value.HasValue).OrderBy(kv => kv.Value!.Value).First().Key;
+        players.TryGetValue(bestMedianId, out bestPlayerByMedian);
+    }
 
     // Team-level stats: compute per-team average and best single-round score
     const string bestTeamByAvgSql = @"
