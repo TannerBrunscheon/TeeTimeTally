@@ -27,20 +27,6 @@ public class ReportService
         {
             return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, new GroupYearSummaryDto(groupId, 0, 0m, 0m, 0m, 0m));
         }
-
-    public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)
-    {
-        await using var connection = await _dataSource.OpenConnectionAsync(ct);
-        const string sql = @"
-            SELECT DISTINCT date_part('year', round_date)::int AS Year
-            FROM rounds
-            WHERE group_id = @GroupId AND status = 'Finalized'
-            ORDER BY Year DESC;
-        ";
-        var years = (await connection.QueryAsync<int>(sql, new { GroupId = groupId })).ToList();
-        return years;
-    }
-
         const string playersSql = @"
             SELECT p.golfer_id AS GolferId, g.full_name AS FullName, COUNT(DISTINCT p.round_id) AS TimesPlayed
             FROM round_participants p
@@ -160,5 +146,18 @@ public class ReportService
 
         var summary = new GroupYearSummaryDto(groupId, roundIds.Count, Math.Round(groupAvg, 2), Math.Round(groupMedian, 2), totalPot, maxPot);
         return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, summary);
+    }
+
+    public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)
+    {
+        await using var connection = await _dataSource.OpenConnectionAsync(ct);
+        const string sql = @"
+            SELECT DISTINCT date_part('year', round_date)::int AS Year
+            FROM rounds
+            WHERE group_id = @GroupId AND status = 'Finalized'
+            ORDER BY Year DESC;
+        ";
+        var years = (await connection.QueryAsync<int>(sql, new { GroupId = groupId })).ToList();
+        return years;
     }
 }
