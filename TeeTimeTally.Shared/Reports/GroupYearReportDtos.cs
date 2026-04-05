@@ -5,15 +5,15 @@ public record PlayerYearStatsDto(
     string FullName,
     int TimesPlayed,
     decimal NetWinnings,
-    decimal AvgVsParPerRound,
-    decimal MedianVsParPerRound
+    decimal? AvgVsParPerRound,
+    decimal? MedianVsParPerRound
 );
 
 public record GroupYearSummaryDto(
     Guid GroupId,
     int RoundsCount,
-    decimal AvgGroupVsPar,
-    decimal MedianGroupVsPar,
+    decimal? AvgGroupVsPar,
+    decimal? MedianGroupVsPar,
     decimal TotalPotSum,
     decimal MaxPot
 );

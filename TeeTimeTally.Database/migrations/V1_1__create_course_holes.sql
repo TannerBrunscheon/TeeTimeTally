@@ -1,0 +1,4 @@
+-- REMOVED: This migration was deprecated. Per-team decision, we do not create
+-- the `course_holes` table here. If you need to reintroduce it create a new
+-- migration that both creates the table and (optionally) seeds authoritative
+-- per-hole par values.

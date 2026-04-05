@@ -25,7 +25,7 @@ public class ReportService
 
         if (!roundIds.Any())
         {
-            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, new GroupYearSummaryDto(groupId, 0, 0m, 0m, 0m, 0m));
+            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m));
         }
         const string playersSql = @"
             SELECT p.golfer_id AS GolferId, g.full_name AS FullName, COUNT(DISTINCT p.round_id) AS TimesPlayed
@@ -35,7 +35,7 @@ public class ReportService
             GROUP BY p.golfer_id, g.full_name;
         ";
         var players = (await connection.QueryAsync(playersSql, new { RoundIds = roundIds.ToArray() }))
-            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, 0m, 0m))
+            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, null, null))
             .ToDictionary(p => p.GolferId);
 
         const string payoutsSql = @"
@@ -55,15 +55,17 @@ public class ReportService
             }
         }
 
+        // We don't currently collect hole-by-hole par data, so compute averages/medians
+        // over total round scores (lower is better). These populate the same DTO
+        // fields previously named 'vs par' so UI continues to work without DB schema changes.
         const string vsParSql = @"
-            SELECT rp.golfer_id AS GolferId, AVG(player_round_diff)::numeric AS AvgVsParPerRound
+            SELECT rp.golfer_id AS GolferId, AVG(player_round_score_total)::numeric AS AvgVsParPerRound
             FROM (
                 SELECT rp.golfer_id, rs.round_id,
-                       SUM(rs.score - ch.par) AS player_round_diff
+                       SUM(rs.score) AS player_round_score_total
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
                 JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.round_team_id = rt.id
-                JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rp.golfer_id, rs.round_id
             ) t
@@ -82,14 +84,13 @@ public class ReportService
 
         const string vsParMedianSql = @"
             SELECT golfer_id AS GolferId,
-                   percentile_cont(0.5) WITHIN GROUP (ORDER BY player_round_diff)::numeric AS MedianVsParPerRound
+                   percentile_cont(0.5) WITHIN GROUP (ORDER BY player_round_score_total)::numeric AS MedianVsParPerRound
             FROM (
                 SELECT rp.golfer_id, rs.round_id,
-                       SUM(rs.score - ch.par) AS player_round_diff
+                       SUM(rs.score) AS player_round_score_total
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
                 JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.round_team_id = rt.id
-                JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rp.golfer_id, rs.round_id
             ) t
@@ -107,30 +108,28 @@ public class ReportService
         }
 
         const string groupAvgSql = @"
-            SELECT AVG(team_round_diff)::numeric AS AvgGroupVsPar
+            SELECT AVG(team_round_score_total)::numeric AS AvgGroupVsPar
             FROM (
-                SELECT rs.round_id, rs.round_team_id, SUM(rs.score - ch.par) AS team_round_diff
+                SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
-                JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rs.round_id, rs.round_team_id
             ) t;
         ";
-        var groupAvg = (await connection.QuerySingleAsync<decimal?>(groupAvgSql, new { RoundIds = roundIds.ToArray() })) ?? 0m;
+    var groupAvg = await connection.QuerySingleAsync<decimal?>(groupAvgSql, new { RoundIds = roundIds.ToArray() });
 
         const string groupMedianSql = @"
-            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_diff)::numeric AS MedianGroupVsPar
+            SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_score_total)::numeric AS MedianGroupVsPar
             FROM (
-                SELECT rs.round_id, rs.round_team_id, SUM(rs.score - ch.par) AS team_round_diff
+                SELECT rs.round_id, rs.round_team_id, SUM(rs.score) AS team_round_score_total
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
-                JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rs.round_id, rs.round_team_id
             ) t;
         ";
-        var groupMedian = (await connection.QuerySingleAsync<decimal?>(groupMedianSql, new { RoundIds = roundIds.ToArray() })) ?? 0m;
+    var groupMedian = await connection.QuerySingleAsync<decimal?>(groupMedianSql, new { RoundIds = roundIds.ToArray() });
 
         const string potSql = @"
             SELECT COALESCE(SUM(total_pot),0)::numeric AS TotalPotSum, COALESCE(MAX(total_pot),0)::numeric AS MaxPot
@@ -141,10 +140,13 @@ public class ReportService
         decimal totalPot = pot.totalpotsum is decimal d1 ? Math.Round(d1, 2) : 0m;
         decimal maxPot = pot.maxpot is decimal d2 ? Math.Round(d2, 2) : 0m;
 
-        var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
-        var bestPlayer = playersList.OrderBy(p => p.AvgVsParPerRound).FirstOrDefault();
+    var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
+    var bestPlayer = playersList.OrderBy(p => p.AvgVsParPerRound ?? decimal.MaxValue).FirstOrDefault();
 
-        var summary = new GroupYearSummaryDto(groupId, roundIds.Count, Math.Round(groupAvg, 2), Math.Round(groupMedian, 2), totalPot, maxPot);
+    decimal? roundedGroupAvg = groupAvg.HasValue ? Math.Round(groupAvg.Value, 2) : null;
+    decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
+
+    var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
         return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, summary);
     }
 
