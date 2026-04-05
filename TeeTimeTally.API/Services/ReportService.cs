@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Dapper;
 using Npgsql;
+using Microsoft.Extensions.Logging;
 using TeeTimeTally.Shared.Reports;
 
 namespace TeeTimeTally.API.Services;
@@ -12,10 +13,12 @@ namespace TeeTimeTally.API.Services;
 public class ReportService
 {
     private readonly NpgsqlDataSource _dataSource;
+    private readonly ILogger<ReportService> _logger;
 
-    public ReportService(NpgsqlDataSource dataSource)
+    public ReportService(NpgsqlDataSource dataSource, ILogger<ReportService> logger)
     {
         _dataSource = dataSource;
+        _logger = logger;
     }
 
     public async Task<GroupYearEndReportDto> GetGroupYearEndReportAsync(Guid groupId, int year, CancellationToken ct = default)
@@ -55,9 +58,43 @@ public class ReportService
             WHERE round_id = ANY(@RoundIds)
             GROUP BY golfer_id;
         ";
-        var payouts = (await connection.QueryAsync(payoutsSql, new { RoundIds = roundIds.ToArray() }))
-            .Select(r => new { GolferId = (Guid)r.golferid, Total = (decimal)r.totalwinnings, Skins = (decimal)r.skinswinnings })
-            .ToDictionary(x => x.GolferId, x => (Total: x.Total, Skins: x.Skins));
+        var payoutsRaw = (await connection.QueryAsync(payoutsSql, new { RoundIds = roundIds.ToArray() })).ToList();
+        var payouts = new Dictionary<Guid, (decimal Total, decimal Skins)>();
+        foreach (var r in payoutsRaw)
+        {
+            try
+            {
+                var gid = (Guid)r.golferid;
+                // Parse numeric results defensively to avoid Npgsql decimal overflow
+                var totalRaw = r.totalwinnings;
+                var skinsRaw = r.skinswinnings;
+                decimal total = 0m;
+                decimal skins = 0m;
+                if (totalRaw != null)
+                {
+                    var totalRawStr = totalRaw.ToString();
+                    if (!decimal.TryParse(totalRawStr, out total))
+                    {
+                        _logger.LogWarning("ReportService: Failed to parse total winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)totalRawStr);
+                        total = 0m;
+                    }
+                }
+                if (skinsRaw != null)
+                {
+                    var skinsRawStr = skinsRaw.ToString();
+                    if (!decimal.TryParse(skinsRawStr, out skins))
+                    {
+                        _logger.LogWarning("ReportService: Failed to parse skins winnings for golfer {GolferId}. Raw: {Raw}", (object)gid, (object)skinsRawStr);
+                        skins = 0m;
+                    }
+                }
+                payouts[gid] = (Total: total, Skins: skins);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ReportService: Unexpected error parsing payout row: {Row}", (object)r);
+            }
+        }
 
         foreach (var kv in players.ToList())
         {
@@ -83,8 +120,26 @@ public class ReportService
             ) t
             GROUP BY t.golfer_id;
         ";
-        var vsPars = (await connection.QueryAsync(vsParSql, new { RoundIds = roundIds.ToArray() }))
-            .ToDictionary(r => (Guid)r.golferid, r => (decimal)r.avgvsparperround);
+        var vsParsRaw = (await connection.QueryAsync(vsParSql, new { RoundIds = roundIds.ToArray() })).ToList();
+        var vsPars = new Dictionary<Guid, decimal>();
+        foreach (var r in vsParsRaw)
+        {
+            try
+            {
+                var gid = (Guid)r.golferid;
+                decimal val = 0m;
+                if (r.avgvsparperround != null)
+                {
+                    decimal parsed;
+                    if (decimal.TryParse(r.avgvsparperround.ToString(), out parsed)) val = parsed;
+                }
+                vsPars[gid] = val;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ReportService: Failed to parse AvgVsParPerRound row: {Row}", (object)r);
+            }
+        }
 
         foreach (var kv in players.ToList())
         {
@@ -108,8 +163,26 @@ public class ReportService
             ) t
             GROUP BY golfer_id;
         ";
-        var vsParsMedian = (await connection.QueryAsync(vsParMedianSql, new { RoundIds = roundIds.ToArray() }))
-            .ToDictionary(r => (Guid)r.golferid, r => (decimal?)r.medianvsparperround);
+        var vsParsMedianRaw = (await connection.QueryAsync(vsParMedianSql, new { RoundIds = roundIds.ToArray() })).ToList();
+        var vsParsMedian = new Dictionary<Guid, decimal?>();
+        foreach (var r in vsParsMedianRaw)
+        {
+            try
+            {
+                var gid = (Guid)r.golferid;
+                decimal? val = null;
+                if (r.medianvsparperround != null)
+                {
+                    decimal parsed;
+                    if (decimal.TryParse(r.medianvsparperround.ToString(), out parsed)) val = parsed;
+                }
+                vsParsMedian[gid] = val;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "ReportService: Failed to parse MedianVsParPerRound row: {Row}", (object)r);
+            }
+        }
 
         foreach (var kv in players.ToList())
         {
@@ -129,7 +202,13 @@ public class ReportService
                 GROUP BY rs.round_id, rs.round_team_id
             ) t;
         ";
-    var groupAvg = await connection.QuerySingleAsync<decimal?>(groupAvgSql, new { RoundIds = roundIds.ToArray() });
+    var groupAvgRaw = await connection.QuerySingleOrDefaultAsync(groupAvgSql, new { RoundIds = roundIds.ToArray() });
+    decimal? groupAvg = null;
+    if (groupAvgRaw != null)
+    {
+        try { if (decimal.TryParse(groupAvgRaw.ToString(), out decimal gAvgParsed)) groupAvg = gAvgParsed; }
+        catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupAvg: {Raw}", (object)groupAvgRaw); }
+    }
 
         const string groupMedianSql = @"
             SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY team_round_score_total)::numeric AS MedianGroupVsPar
@@ -141,7 +220,13 @@ public class ReportService
                 GROUP BY rs.round_id, rs.round_team_id
             ) t;
         ";
-    var groupMedian = await connection.QuerySingleAsync<decimal?>(groupMedianSql, new { RoundIds = roundIds.ToArray() });
+    var groupMedianRaw = await connection.QuerySingleOrDefaultAsync(groupMedianSql, new { RoundIds = roundIds.ToArray() });
+    decimal? groupMedian = null;
+    if (groupMedianRaw != null)
+    {
+        try { if (decimal.TryParse(groupMedianRaw.ToString(), out decimal gMedParsed)) groupMedian = gMedParsed; }
+        catch (Exception ex) { _logger.LogWarning(ex, "ReportService: Failed to parse groupMedian: {Raw}", (object)groupMedianRaw); }
+    }
 
         const string potSql = @"
             SELECT COALESCE(SUM(total_pot),0)::numeric AS TotalPotSum, COALESCE(MAX(total_pot),0)::numeric AS MaxPot
@@ -149,8 +234,32 @@ public class ReportService
             WHERE id = ANY(@RoundIds);
         ";
         var pot = await connection.QuerySingleAsync(potSql, new { RoundIds = roundIds.ToArray() });
-        decimal totalPot = pot.totalpotsum is decimal d1 ? Math.Round(d1, 2) : 0m;
-        decimal maxPot = pot.maxpot is decimal d2 ? Math.Round(d2, 2) : 0m;
+        decimal totalPot = 0m;
+        decimal maxPot = 0m;
+        try
+        {
+            if (pot.totalpotsum != null)
+            {
+                decimal tp;
+                if (decimal.TryParse(pot.totalpotsum.ToString(), out tp)) totalPot = Math.Round(tp, 2);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ReportService: Failed to parse totalPot from pot query: {Pot}", (object)pot);
+        }
+        try
+        {
+            if (pot.maxpot != null)
+            {
+                decimal mp;
+                if (decimal.TryParse(pot.maxpot.ToString(), out mp)) maxPot = Math.Round(mp, 2);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ReportService: Failed to parse maxPot from pot query: {Pot}", (object)pot);
+        }
 
     // Closest-to-the-hole (CTH) counts per golfer
     const string cthSql = @"
@@ -208,9 +317,33 @@ public class ReportService
         JOIN round_teams rt ON rt.id = t.round_team_id
         GROUP BY rt.id, rt.team_name_or_number
         ORDER BY AvgScorePerRound ASC;";
-    var teamsScores = (await connection.QueryAsync(teamsScoresSql, new { RoundIds = roundIds.ToArray() }))
-        .Select(r => new { TeamId = (Guid)r.teamid, TeamName = (string)r.teamname, AvgScore = (r.avgscoreperround is decimal da) ? (decimal?)Math.Round(da,2) : null, BestRound = (r.bestroundscore is decimal db) ? (decimal?)Math.Round(db,2) : null })
-        .ToList();
+    var teamsScoresRaw = (await connection.QueryAsync(teamsScoresSql, new { RoundIds = roundIds.ToArray() })).ToList();
+    var teamsScores = new List<dynamic>();
+    foreach (var r in teamsScoresRaw)
+    {
+        try
+        {
+            var tid = (Guid)r.teamid;
+            var tname = (string)r.teamname;
+            decimal? avg = null;
+            decimal? best = null;
+            if (r.avgscoreperround != null)
+            {
+                decimal a;
+                if (decimal.TryParse(r.avgscoreperround.ToString(), out a)) avg = Math.Round(a, 2);
+            }
+            if (r.bestroundscore != null)
+            {
+                decimal b;
+                if (decimal.TryParse(r.bestroundscore.ToString(), out b)) best = Math.Round(b, 2);
+            }
+            teamsScores.Add(new { TeamId = tid, TeamName = tname, AvgScore = avg, BestRound = best });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "ReportService: Failed to parse teamsScores row: {Row}", (object)r);
+        }
+    }
 
     List<TeamYearStatsDto>? bestTeamsByAvg = null;
     List<TeamYearStatsDto>? bestTeamsByBestRound = null;
