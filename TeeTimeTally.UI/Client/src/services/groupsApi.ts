@@ -63,3 +63,8 @@ export async function fetchGroupYearEndReport(groupId: string, year: number): Pr
   const { data } = await useHttpClient().get<GroupYearEndReportResponse>(`/api/groups/${groupId}/reports/year/${year}`);
   return data;
 }
+
+export async function getGroupReportYears(groupId: string): Promise<number[]> {
+  const { data } = await useHttpClient().get<number[]>(`/api/groups/${groupId}/reports/years`);
+  return data;
+}

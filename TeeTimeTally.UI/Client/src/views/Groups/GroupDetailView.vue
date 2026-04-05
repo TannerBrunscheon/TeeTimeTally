@@ -9,7 +9,7 @@ import GroupInfoCard from './GroupDetail/GroupInfoCard.vue';
 import FinancialEditorCard from './GroupDetail/FinancialEditorCard.vue'; // New import
 import GroupMembersCard from './GroupDetail/GroupMembersCard.vue';
 import GroupRoundHistoryCard from './GroupDetail/GroupRoundHistoryCard.vue';
-import GroupYearReportModal from './GroupDetail/GroupYearReportModal.vue';
+import GroupYearReportsSection from './GroupDetail/GroupYearReportsSection.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -59,9 +59,6 @@ function createNewGroup() {
     <div v-else-if="group">
         <div class="d-flex align-items-center justify-content-between mb-3">
           <h2 class="mb-0">{{ group.name }} Details</h2>
-          <div>
-            <button class="btn btn-outline-primary me-2" @click="showReportModal = true">Yearly Report</button>
-          </div>
         </div>
 
       <div v-if="groupsStore.isLoadingGroupDetail && group" class="text-muted small my-2 text-center">
@@ -91,8 +88,8 @@ function createNewGroup() {
         @members-updated="handleMembersUpdated"
       />
 
-      <GroupRoundHistoryCard :group-id="props.groupId" />
-      <GroupYearReportModal v-if="showReportModal" :group-id="String(props.groupId)" @close="showReportModal = false" />
+  <GroupRoundHistoryCard :group-id="props.groupId" />
+  <GroupYearReportsSection :group-id="String(props.groupId)" />
     </div>
 
     <div v-else class="alert alert-warning" role="alert">

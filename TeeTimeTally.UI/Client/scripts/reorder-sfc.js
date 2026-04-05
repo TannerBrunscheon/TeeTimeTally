@@ -1,9 +1,7 @@
-import fs from 'fs/promises';
-import path from 'path';
-import { fileURLToPath } from 'url';
+#!/usr/bin/env node
+const fs = require('fs').promises;
+const path = require('path');
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..'); // Client folder
 
 function escapeForRegex(s){ return s.replace(/[-/\\^$*+?.()|[\]{}]/g,'\\$&'); }
@@ -54,6 +52,7 @@ async function processFile(file){
     const template = templateMatches[0];
     const style = styleMatches[0] || '';
 
+    // Any text outside these blocks we should preserve as leading/trailing (rare)
     // Build a new content with canonical order: script, template, style
     const newContent = [script, '\n\n', template, style ? '\n\n' + style : ''].join('');
 
