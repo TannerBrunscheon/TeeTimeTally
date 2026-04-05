@@ -146,8 +146,6 @@ public class ReportService
         decimal totalPot = pot.totalpotsum is decimal d1 ? Math.Round(d1, 2) : 0m;
         decimal maxPot = pot.maxpot is decimal d2 ? Math.Round(d2, 2) : 0m;
 
-    var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
-
     // Closest-to-the-hole (CTH) counts per golfer
     const string cthSql = @"
         SELECT cth_winner_golfer_id AS GolferId, COUNT(*)::int AS CthCount
@@ -310,7 +308,11 @@ public class ReportService
     decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
 
     var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
-        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestPlayerByCth, bestTeamByAvg, bestTeamBestRound, mostPlayedTeams, summary);
+
+    // Re-evaluate the players list after we've applied CTH counts and any other updates
+    var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();
+
+    return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestPlayerByCth, bestTeamByAvg, bestTeamBestRound, mostPlayedTeams, summary);
     }
 
     public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)

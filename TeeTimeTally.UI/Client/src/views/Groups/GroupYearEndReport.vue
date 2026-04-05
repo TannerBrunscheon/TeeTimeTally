@@ -74,6 +74,7 @@ function formatNullableNumber(value?: number | null) {
             <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Net" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <ReportTableHeader label="Net / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Avg score/round" sortKey="avg" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
           </tr>
@@ -85,6 +86,7 @@ function formatNullableNumber(value?: number | null) {
             <td>{{ p.closestToHoleCount ?? 0 }}</td>
             <td>{{ formatCurrency(p.netWinnings) }}</td>
             <td>{{ formatCurrency(displayedNet(p)) }}</td>
+            <td>{{ p.timesPlayed ? formatCurrency(displayedNet(p) / p.timesPlayed) : '—' }}</td>
             <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
             <td>{{ formatNullableNumber(p.medianVsParPerRound) }}</td>
           </tr>

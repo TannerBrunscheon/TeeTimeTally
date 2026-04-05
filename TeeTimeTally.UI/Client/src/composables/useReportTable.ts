@@ -22,6 +22,12 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
     return net;
   }
 
+  function displayedNetPerRound(p: any) {
+    const times = p.timesPlayed ?? 0;
+    if (times === 0) return 0;
+    return displayedNet(p) / times;
+  }
+
   const sortedPlayers = computed(() => {
     if (!report.value) return [] as GroupYearEndReportResponse['players'];
     const arr = [...report.value.players];
@@ -32,7 +38,8 @@ export function useReportTable(report: Ref<GroupYearEndReportResponse | null>, g
         case 'timesPlayed': return (a.timesPlayed - b.timesPlayed) * dir;
         case 'cth': return ((a.closestToHoleCount ?? 0) - (b.closestToHoleCount ?? 0)) * dir;
         case 'winnings': return ((a.netWinnings ?? 0) - (b.netWinnings ?? 0)) * dir;
-        case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
+  case 'net': return (displayedNet(a) - displayedNet(b)) * dir;
+  case 'netPerRound': return (displayedNetPerRound(a) - displayedNetPerRound(b)) * dir;
         case 'avg': return ((a.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.avgVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
         case 'median': return ((a.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER) - (b.medianVsParPerRound ?? Number.MAX_SAFE_INTEGER)) * dir;
         default: return 0;
