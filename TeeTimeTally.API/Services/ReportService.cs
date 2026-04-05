@@ -44,39 +44,26 @@ public class ReportService
             .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, 0m, null, null, 0))
             .ToDictionary(p => p.GolferId);
 
+        // Use round_payout_summary which contains per-player breakdown JSON to compute
+        // both TotalWinnings and SkinsWinnings. This avoids double-counting skins when
+        // a team has multiple members (round_scores.skin_value_won stores the team amount).
         const string payoutsSql = @"
-            SELECT golfer_id AS GolferId, SUM(total_winnings)::numeric AS TotalWinnings
+            SELECT golfer_id AS GolferId,
+                   SUM(total_winnings)::numeric AS TotalWinnings,
+                   SUM((breakdown::jsonb ->> 'SkinsWinnings')::numeric)::numeric AS SkinsWinnings
             FROM round_payout_summary
             WHERE round_id = ANY(@RoundIds)
             GROUP BY golfer_id;
         ";
         var payouts = (await connection.QueryAsync(payoutsSql, new { RoundIds = roundIds.ToArray() }))
-            .ToDictionary(r => (Guid)r.golferid, r => (decimal)r.totalwinnings);
+            .Select(r => new { GolferId = (Guid)r.golferid, Total = (decimal)r.totalwinnings, Skins = (decimal)r.skinswinnings })
+            .ToDictionary(x => x.GolferId, x => (Total: x.Total, Skins: x.Skins));
 
         foreach (var kv in players.ToList())
         {
-            if (payouts.TryGetValue(kv.Key, out var total))
+            if (payouts.TryGetValue(kv.Key, out var tot))
             {
-                players[kv.Key] = kv.Value with { TotalWinnings = Math.Round(total, 2) };
-            }
-        }
-
-        // Sum up skins (skin_value_won on round_scores) per golfer
-        const string skinsSql = @"
-            SELECT rp.golfer_id AS GolferId, COALESCE(SUM(rs.skin_value_won),0)::numeric AS SkinsSum
-            FROM round_scores rs
-            JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.round_team_id = rs.round_team_id
-            WHERE rs.round_id = ANY(@RoundIds) AND rs.is_skin_winner = TRUE
-            GROUP BY rp.golfer_id;
-        ";
-        var skins = (await connection.QueryAsync(skinsSql, new { RoundIds = roundIds.ToArray() }))
-            .ToDictionary(r => (Guid)r.golferid, r => (decimal)r.skinssum);
-
-        foreach (var kv in players.ToList())
-        {
-            if (skins.TryGetValue(kv.Key, out var skinsAmt))
-            {
-                players[kv.Key] = kv.Value with { SkinsWinnings = Math.Round(skinsAmt, 2) };
+                players[kv.Key] = kv.Value with { TotalWinnings = Math.Round(tot.Total, 2), SkinsWinnings = Math.Round(tot.Skins, 2) };
             }
         }
 
