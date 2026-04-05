@@ -21,6 +21,18 @@ export interface TeamYearStats {
   teamName: string;
   avgScorePerRound?: number | null;
   bestRoundScore?: number | null;
+  members?: TeamMember[];
+  roundsPlayedTogether?: number;
+}
+
+export interface TeamMember {
+  golferId: string;
+  fullName: string;
+}
+
+export interface MostPlayedTeam {
+  members: TeamMember[];
+  count: number;
 }
 
 export interface GroupYearEndReportResponse {
@@ -31,5 +43,6 @@ export interface GroupYearEndReportResponse {
   bestPlayerByMedian?: PlayerYearStats;
   bestTeamByAvg?: TeamYearStats;
   bestTeamBestRound?: TeamYearStats;
+  mostPlayedTeams?: MostPlayedTeam[];
   groupSummary: GroupYearSummary;
 }

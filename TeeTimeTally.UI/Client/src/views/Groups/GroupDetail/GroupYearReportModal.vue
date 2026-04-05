@@ -75,30 +75,26 @@ function viewFullReport() {
           <h5 class="modal-title">Yearly Report — {{ year }}</h5>
           <button type="button" class="btn-close" @click="close"></button>
         </div>
-        <div class="modal-body">
+  <div class="modal-body">
           <div v-if="loading" class="text-center py-4">
             <div class="spinner-border text-primary" role="status"></div>
             <div class="mt-2">Loading report...</div>
           </div>
 
           <div v-else-if="report">
-            <div class="mb-3 row">
-              <div class="col-md-4">
-                <strong>Rounds:</strong> {{ report.groupSummary.roundsCount }}
+            <div class="p-2 rounded" style="background:linear-gradient(90deg,#fff7ed,#fff1f2);border:1px solid #fde68a">
+              <div class="row">
+                <div class="col-md-4"><strong>Rounds:</strong> {{ report.groupSummary.roundsCount }}</div>
+                <div class="col-md-4"><strong>Total Pot:</strong> {{ formatCurrency(report.groupSummary.totalPotSum) }}</div>
+                <div class="col-md-4"><strong>Max Pot:</strong> {{ formatCurrency(report.groupSummary.maxPot) }}</div>
               </div>
-              <div class="col-md-4">
-                <strong>Total Pot:</strong> {{ formatCurrency(report.groupSummary.totalPotSum) }}
+              <div class="row mt-2">
+                <div class="col-md-6"><strong>Avg:</strong> {{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }}</div>
+                <div class="col-md-6"><strong>Median:</strong> {{ formatNullableNumber(report.groupSummary.medianGroupVsPar) }}</div>
               </div>
-              <div class="col-md-4">
-                <strong>Max Pot:</strong> {{ formatCurrency(report.groupSummary.maxPot) }}
-              </div>
-            </div>
-            <div class="mb-3 row">
-              <div class="col-md-6"><strong>Avg</strong>: {{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }}</div>
-              <div class="col-md-6"><strong>Median</strong>: {{ formatNullableNumber(report.groupSummary.medianGroupVsPar) }}</div>
             </div>
 
-            <h6>Members</h6>
+            <h6 class="mt-3">Members</h6>
             <div class="table-responsive">
               <table class="table table-sm table-striped">
                 <thead>
@@ -120,6 +116,30 @@ function viewFullReport() {
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div class="mt-3">
+              <h6>Top Teams</h6>
+              <p>
+                <strong>Best Team (Avg):</strong>
+                <span v-if="report.bestTeamByAvg">{{ (report.bestTeamByAvg.members || []).map(m=>m.fullName).join(', ') }} — {{ report.bestTeamByAvg.roundsPlayedTogether ?? 0 }} games — {{ formatNullableNumber(report.bestTeamByAvg.avgScorePerRound) }}</span>
+                <span v-else>—</span>
+              </p>
+              <p>
+                <strong>Best Team (Single Round):</strong>
+                <span v-if="report.bestTeamBestRound">{{ (report.bestTeamBestRound.members || []).map(m=>m.fullName).join(', ') }} — {{ report.bestTeamBestRound.roundsPlayedTogether ?? 0 }} games — {{ formatNullableNumber(report.bestTeamBestRound.bestRoundScore) }}</span>
+                <span v-else>—</span>
+              </p>
+
+              <div>
+                <strong>Most played together:</strong>
+                <div v-if="report.mostPlayedTeams && report.mostPlayedTeams.length">
+                  <ul>
+                    <li v-for="(t, idx) in report.mostPlayedTeams" :key="idx">{{ t.members.map(m=>m.fullName).join(', ') }} — {{ t.count }} games</li>
+                  </ul>
+                </div>
+                <div v-else>—</div>
+              </div>
             </div>
           </div>
 

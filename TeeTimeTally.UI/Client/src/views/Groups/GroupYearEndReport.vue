@@ -42,20 +42,32 @@ function displayedNet(p: any) {
 
 <template>
   <div class="container">
-    <h2 class="mb-3">Year End Report - {{ year }}</h2>
-    <div v-if="isLoading">Loading...</div>
-    <div v-else-if="report">
-      <h4>Group Summary</h4>
-      <p>
-        Rounds: {{ report.groupSummary.roundsCount }} —
-        <span v-if="report.groupSummary.avgGroupVsPar === null || report.groupSummary.avgGroupVsPar === undefined">Avg score/round</span>
-        <span v-else>Avg vs Par/round</span>
-        : {{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }} — Median: {{ formatNullableNumber(report.groupSummary.medianGroupVsPar) }}
-      </p>
-      <p>
-        Total Pot: {{ formatCurrency(report.groupSummary.totalPotSum) }} — Max Pot: {{ formatCurrency(report.groupSummary.maxPot) }}
-      </p>
-      <h4 class="mt-4">Players</h4>
+    <div class="mb-3">
+      <h2>Year End Report - {{ year }}</h2>
+      <div v-if="isLoading">Loading...</div>
+      <div v-else-if="report">
+        <div class="p-3 rounded" style="background: linear-gradient(90deg,#f8fafc,#eef2ff); border: 1px solid #e6eefc;">
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;">
+            <div>
+              <h4 style="margin:0">Group Summary</h4>
+              <div style="font-size:1rem; color:#0f172a;">Rounds: <strong>{{ report.groupSummary.roundsCount }}</strong></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:600;color:#065f46">Avg score/round: <span style="font-size:1.1rem">{{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }}</span></div>
+              <div style="color:#0f172a">Median: <span>{{ formatNullableNumber(report.groupSummary.medianGroupVsPar) }}</span></div>
+            </div>
+            <div style="text-align:right">
+              <div style="font-weight:600;color:#0f172a">Total Pot: <span style="font-size:1.1rem">{{ formatCurrency(report.groupSummary.totalPotSum) }}</span></div>
+              <div>Max Pot: {{ formatCurrency(report.groupSummary.maxPot) }}</div>
+            </div>
+          </div>
+        </div>
+        <div class="mt-3"></div>
+      </div>
+      <div v-else>No report available.</div>
+    </div>
+    <div v-if="report">
+  <h4 class="mt-4">Players</h4>
       <table class="table table-striped table-hover">
         <thead>
           <tr>
@@ -79,17 +91,45 @@ function displayedNet(p: any) {
 
       <div class="row mt-4 mb-5">
         <div class="col-md-6">
-          <h5>Top Players</h5>
+          <h5>Top Players 🏆</h5>
           <p><strong>Best (Avg):</strong> {{ report.bestPlayerByAvgVsPar ? report.bestPlayerByAvgVsPar.fullName + ' — ' + formatNullableNumber(report.bestPlayerByAvgVsPar.avgVsParPerRound) : '—' }}</p>
           <p><strong>Best (Median):</strong> {{ report.bestPlayerByMedian ? report.bestPlayerByMedian.fullName + ' — ' + formatNullableNumber(report.bestPlayerByMedian.medianVsParPerRound) : '—' }}</p>
         </div>
         <div class="col-md-6">
-          <h5>Top Teams</h5>
-          <p><strong>Best Team (Avg):</strong> {{ report.bestTeamByAvg ? report.bestTeamByAvg.teamName + ' — ' + formatNullableNumber(report.bestTeamByAvg.avgScorePerRound) : '—' }}</p>
-          <p><strong>Best Team (Single Round):</strong> {{ report.bestTeamBestRound ? report.bestTeamBestRound.teamName + ' — ' + formatNullableNumber(report.bestTeamBestRound.bestRoundScore) : '—' }}</p>
+          <h5>Top Teams 🏆</h5>
+          <p>
+            <strong>Best Team (Avg):</strong>
+            <span v-if="report.bestTeamByAvg">
+              {{ (report.bestTeamByAvg.members || []).map(m=>m.fullName).join(', ') }}
+              — {{ report.bestTeamByAvg.roundsPlayedTogether ?? '0' }} games —
+              {{ formatNullableNumber(report.bestTeamByAvg.avgScorePerRound) }}
+            </span>
+            <span v-else>—</span>
+          </p>
+          <p>
+            <strong>Best Team (Single Round):</strong>
+            <span v-if="report.bestTeamBestRound">
+              {{ (report.bestTeamBestRound.members || []).map(m=>m.fullName).join(', ') }}
+              — {{ report.bestTeamBestRound.roundsPlayedTogether ?? '0' }} games —
+              {{ formatNullableNumber(report.bestTeamBestRound.bestRoundScore) }}
+            </span>
+            <span v-else>—</span>
+          </p>
+
+          <div class="mt-2">
+            <strong>Most played together:</strong>
+            <div v-if="report.mostPlayedTeams && report.mostPlayedTeams.length">
+              <ul>
+                <li v-for="(t, idx) in report.mostPlayedTeams" :key="idx">
+                  {{ t.members.map(m=>m.fullName).join(', ') }} — {{ t.count }} games
+                </li>
+              </ul>
+            </div>
+            <div v-else>—</div>
+          </div>
         </div>
       </div>
     </div>
-    <div v-else>No report available.</div>
+    
   </div>
 </template>

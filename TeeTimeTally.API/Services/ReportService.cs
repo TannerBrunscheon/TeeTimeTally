@@ -1,3 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Dapper;
 using Npgsql;
 using TeeTimeTally.Shared.Reports;
@@ -26,7 +31,7 @@ public class ReportService
         if (!roundIds.Any())
         {
             var emptySummary = new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m);
-            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, emptySummary);
+            return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, null, emptySummary);
         }
         const string playersSql = @"
             SELECT p.golfer_id AS GolferId, g.full_name AS FullName, COUNT(DISTINCT p.round_id) AS TimesPlayed
@@ -194,18 +199,93 @@ public class ReportService
     TeamYearStatsDto? bestTeamBestRound = null;
     if (bestTeamByAvgRow != null)
     {
-        bestTeamByAvg = new TeamYearStatsDto((Guid)bestTeamByAvgRow.teamid, (string)bestTeamByAvgRow.teamname, (bestTeamByAvgRow.avgscoreperround is decimal da) ? Math.Round(da, 2) : null, (bestTeamByAvgRow.bestroundscore is decimal db) ? Math.Round(db, 2) : null);
+        var teamId = (Guid)bestTeamByAvgRow.teamid;
+        var teamName = (string)bestTeamByAvgRow.teamname;
+    decimal? avgScore = (bestTeamByAvgRow.avgscoreperround is decimal da) ? (decimal?)Math.Round(da, 2) : null;
+    decimal? bestRound = (bestTeamByAvgRow.bestroundscore is decimal db) ? (decimal?)Math.Round(db, 2) : null;
+
+        const string teamMembersSql = @"
+            SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
+            FROM round_participants rp
+            JOIN golfers g ON rp.golfer_id = g.id
+            WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
+            ORDER BY g.full_name;
+        ";
+        var members = (await connection.QueryAsync(teamMembersSql, new { TeamId = teamId, RoundIds = roundIds.ToArray() }))
+            .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
+
+        const string teamRoundsSql = @"
+            SELECT COUNT(DISTINCT rp.round_id)::int FROM round_participants rp WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds);
+        ";
+        var roundsCount = await connection.QuerySingleAsync<int>(teamRoundsSql, new { TeamId = teamId, RoundIds = roundIds.ToArray() });
+
+        bestTeamByAvg = new TeamYearStatsDto(teamId, teamName, avgScore, bestRound, members, roundsCount);
     }
     if (bestTeamBestRoundRow != null)
     {
-        bestTeamBestRound = new TeamYearStatsDto((Guid)bestTeamBestRoundRow.teamid, (string)bestTeamBestRoundRow.teamname, (bestTeamBestRoundRow.avgscoreperround is decimal dc) ? Math.Round(dc, 2) : null, (bestTeamBestRoundRow.bestroundscore is decimal dd) ? Math.Round(dd, 2) : null);
+        var teamId = (Guid)bestTeamBestRoundRow.teamid;
+        var teamName = (string)bestTeamBestRoundRow.teamname;
+    decimal? avgScore = (bestTeamBestRoundRow.avgscoreperround is decimal dc) ? (decimal?)Math.Round(dc, 2) : null;
+    decimal? bestRound = (bestTeamBestRoundRow.bestroundscore is decimal dd) ? (decimal?)Math.Round(dd, 2) : null;
+
+        const string teamMembersSql = @"
+            SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
+            FROM round_participants rp
+            JOIN golfers g ON rp.golfer_id = g.id
+            WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
+            ORDER BY g.full_name;
+        ";
+        var members = (await connection.QueryAsync(teamMembersSql, new { TeamId = teamId, RoundIds = roundIds.ToArray() }))
+            .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
+
+        const string teamRoundsSql = @"
+            SELECT COUNT(DISTINCT rp.round_id)::int FROM round_participants rp WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds);
+        ";
+        var roundsCount = await connection.QuerySingleAsync<int>(teamRoundsSql, new { TeamId = teamId, RoundIds = roundIds.ToArray() });
+
+        bestTeamBestRound = new TeamYearStatsDto(teamId, teamName, avgScore, bestRound, members, roundsCount);
+    }
+
+    // Compute most-played-together teams (by rounds count). If tied, include all.
+    const string teamsByRoundsSql = @"
+        SELECT rt.id AS TeamId, rt.team_name_or_number AS TeamName, COUNT(DISTINCT rp.round_id)::int AS RoundsCount
+        FROM round_participants rp
+        JOIN round_teams rt ON rp.round_team_id = rt.id
+        WHERE rp.round_id = ANY(@RoundIds)
+        GROUP BY rt.id, rt.team_name_or_number
+        ORDER BY RoundsCount DESC;
+    ";
+    var teamsByRounds = (await connection.QueryAsync(teamsByRoundsSql, new { RoundIds = roundIds.ToArray() }))
+        .Select(r => new { TeamId = (Guid)r.teamid, TeamName = (string)r.teamname, RoundsCount = (int)r.roundscount })
+        .ToList();
+
+    List<MostPlayedTeamDto>? mostPlayedTeams = null;
+    if (teamsByRounds.Any())
+    {
+        var topCount = teamsByRounds.Max(t => t.RoundsCount);
+        var topTeams = teamsByRounds.Where(t => t.RoundsCount == topCount).ToList();
+        mostPlayedTeams = new List<MostPlayedTeamDto>();
+        foreach (var t in topTeams)
+        {
+            const string teamMembersSql2 = @"
+                SELECT DISTINCT rp.golfer_id AS GolferId, g.full_name AS FullName
+                FROM round_participants rp
+                JOIN golfers g ON rp.golfer_id = g.id
+                WHERE rp.round_team_id = @TeamId AND rp.round_id = ANY(@RoundIds)
+                ORDER BY g.full_name;
+            ";
+            var members = (await connection.QueryAsync(teamMembersSql2, new { TeamId = t.TeamId, RoundIds = roundIds.ToArray() }))
+                .Select(r => new TeamMemberDto((Guid)r.golferid, (string)r.fullname)).ToList();
+
+            mostPlayedTeams.Add(new MostPlayedTeamDto(members, t.RoundsCount));
+        }
     }
 
     decimal? roundedGroupAvg = groupAvg.HasValue ? Math.Round(groupAvg.Value, 2) : null;
     decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
 
     var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
-        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestTeamByAvg, bestTeamBestRound, summary);
+        return new GroupYearEndReportDto(groupId, year, playersList, bestPlayer, bestPlayerByMedian, bestTeamByAvg, bestTeamBestRound, mostPlayedTeams, summary);
     }
 
     public async Task<List<int>> GetGroupReportYearsAsync(Guid groupId, CancellationToken ct = default)
