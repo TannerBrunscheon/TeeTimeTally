@@ -62,7 +62,7 @@ public class ReportService
                        SUM(rs.score - ch.par) AS player_round_diff
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
-                JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.team_id = rt.id
+                JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.round_team_id = rt.id
                 JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rp.golfer_id, rs.round_id
@@ -88,7 +88,7 @@ public class ReportService
                        SUM(rs.score - ch.par) AS player_round_diff
                 FROM round_scores rs
                 JOIN round_teams rt ON rs.round_team_id = rt.id
-                JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.team_id = rt.id
+                JOIN round_participants rp ON rp.round_id = rs.round_id AND rp.round_team_id = rt.id
                 JOIN course_holes ch ON ch.course_id = rt.course_id AND ch.hole_number = rs.hole_number
                 WHERE rs.round_id = ANY(@RoundIds)
                 GROUP BY rp.golfer_id, rs.round_id
