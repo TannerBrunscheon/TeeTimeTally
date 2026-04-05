@@ -7,6 +7,7 @@ export interface PlayerYearStatsDto {
   closestToHoleCount?: number;
   avgVsParPerRound?: number | null;
   medianVsParPerRound?: number | null;
+  wins?: number;
 }
 
 export interface GroupYearSummaryDto {
@@ -16,6 +17,7 @@ export interface GroupYearSummaryDto {
   medianGroupVsPar?: number | null;
   totalPotSum: number;
   maxPot: number;
+  totalMemberRounds?: number;
 }
 
 export interface TeamYearStatsDto {

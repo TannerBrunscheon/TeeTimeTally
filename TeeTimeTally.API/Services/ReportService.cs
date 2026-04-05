@@ -65,7 +65,7 @@ public class ReportService
 
         if (!roundIds.Any())
         {
-            var emptySummary = new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m);
+            var emptySummary = new GroupYearSummaryDto(groupId, 0, null, null, 0m, 0m, 0);
             return new GroupYearEndReportDto(groupId, year, new List<PlayerYearStatsDto>(), null, null, null, null, null, null, null, null, emptySummary);
         }
         const string playersSql = @"
@@ -76,7 +76,7 @@ public class ReportService
             GROUP BY p.golfer_id, g.full_name;
         ";
         var players = (await connection.QueryAsync(playersSql, new { RoundIds = roundIds.ToArray() }))
-            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, 0m, null, null, 0))
+            .Select(r => new PlayerYearStatsDto((Guid)r.golferid, (string)r.fullname, (int)r.timesplayed, 0m, 0m, null, null, 0, 0))
             .ToDictionary(p => p.GolferId);
 
         // Use round_payout_summary which contains per-player breakdown JSON to compute
@@ -325,6 +325,25 @@ public class ReportService
         }
     }
 
+    // Compute wins per player: count of rounds where their team was marked as overall winner
+    const string winsSql = @"
+        SELECT rp.golfer_id AS GolferId, COUNT(*)::int AS WinsCount
+        FROM round_participants rp
+        JOIN round_teams rt ON rp.round_team_id = rt.id
+        WHERE rp.round_id = ANY(@RoundIds) AND rt.is_overall_winner = TRUE
+        GROUP BY rp.golfer_id;
+    ";
+    var winsRaw = (await connection.QueryAsync(winsSql, new { RoundIds = roundIds.ToArray() })).ToList();
+    var winsByGolfer = winsRaw.ToDictionary(r => (Guid)r.golferid, r => (int)r.winscount);
+
+    foreach (var kv in players.ToList())
+    {
+        if (winsByGolfer.TryGetValue(kv.Key, out var wins))
+        {
+            players[kv.Key] = kv.Value with { Wins = wins };
+        }
+    }
+
     // Prefer selecting best players from the computed SQL maps to avoid
     // ordering/assignment timing issues. These maps contain the raw numbers
     // we used to populate the player DTOs above.
@@ -494,7 +513,9 @@ public class ReportService
     decimal? roundedGroupAvg = groupAvg.HasValue ? Math.Round(groupAvg.Value, 2) : null;
     decimal? roundedGroupMedian = groupMedian.HasValue ? Math.Round(groupMedian.Value, 2) : null;
 
-    var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot);
+    // TotalMemberRounds: sum of TimesPlayed across all players
+    var totalMemberRounds = players.Values.Sum(p => p.TimesPlayed);
+    var summary = new GroupYearSummaryDto(groupId, roundIds.Count, roundedGroupAvg, roundedGroupMedian, totalPot, maxPot, totalMemberRounds);
 
     // Re-evaluate the players list after we've applied CTH counts and any other updates
     var playersList = players.Values.OrderByDescending(p => p.TimesPlayed).ToList();

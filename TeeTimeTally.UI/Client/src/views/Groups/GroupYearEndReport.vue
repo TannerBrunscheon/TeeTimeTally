@@ -53,7 +53,9 @@ function formatNullableNumber(value?: number | null) {
             <div class="d-flex justify-content-between align-items-center">
               <div>
                 <div class="h5 mb-0">{{ group?.name || '' }}</div>
-                <div class="text-muted">Rounds: <strong>{{ report.groupSummary.roundsCount }}</strong></div>
+                <div class="text-muted">Rounds: <strong>{{ report.groupSummary.roundsCount }}</strong>
+                  <span class="ms-3">Member rounds: <strong>{{ report.groupSummary.totalMemberRounds ?? 0 }}</strong></span>
+                </div>
               </div>
               <div class="text-end">
                 <div class="fw-semibold text-success">Avg score/round: <span class="ms-2">{{ formatNullableNumber(report.groupSummary.avgGroupVsPar) }}</span></div>
@@ -83,24 +85,26 @@ function formatNullableNumber(value?: number | null) {
           <tr>
             <ReportTableHeader label="Player" sortKey="fullName" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Times Played" sortKey="timesPlayed" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
+            <th class="align-middle"><span class="small text-muted">Wins</span></th>
             <ReportTableHeader label="CTH" sortKey="cth" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Winnings" sortKey="winnings" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-winnings" />
             <ReportTableHeader label="Skins" sortKey="net" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-skins-net" />
             <ReportTableHeader label="Skins / Round" sortKey="netPerRound" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
             <ReportTableHeader label="Avg score/round" sortKey="avg" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" />
-            <ReportTableHeader label="Median score/round" sortKey="median" :sortBy="sortBy" :sortDir="sortDir" :toggleSort="toggleSort" cellClass="col-median" />
+            <!-- Median column removed per request -->
           </tr>
         </thead>
         <tbody>
           <tr v-for="p in sortedPlayers" :key="p.golferId">
             <td>{{ p.fullName }}</td>
             <td>{{ p.timesPlayed }}</td>
+            <td>{{ p.wins ?? 0 }}</td>
             <td class="col-cth">{{ p.closestToHoleCount ?? 0 }}</td>
             <td class="col-winnings">{{ formatCurrency(p.totalWinnings) }}</td>
             <td class="col-skins-net">{{ formatCurrency(displayedNet(p)) }}</td>
             <td class="col-skins-net-per">{{ p.timesPlayed ? formatCurrency(displayedNet(p) / p.timesPlayed) : '—' }}</td>
             <td>{{ formatNullableNumber(p.avgVsParPerRound) }}</td>
-            <td>{{ formatNullableNumber(p.medianVsParPerRound) }}</td>
+            <!-- Median column removed -->
           </tr>
         </tbody>
       </table>

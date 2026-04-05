@@ -8,7 +8,8 @@ public record PlayerYearStatsDto(
     decimal TotalWinnings,
     decimal? AvgVsParPerRound,
     decimal? MedianVsParPerRound,
-    int ClosestToHoleCount
+    int ClosestToHoleCount,
+    int Wins
 );
 
 public record GroupYearSummaryDto(
@@ -17,7 +18,8 @@ public record GroupYearSummaryDto(
     decimal? AvgGroupVsPar,
     decimal? MedianGroupVsPar,
     decimal TotalPotSum,
-    decimal MaxPot
+    decimal MaxPot,
+    int TotalMemberRounds
 );
 
 public record TeamYearStatsDto(
